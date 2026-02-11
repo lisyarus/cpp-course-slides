@@ -1,0 +1,722 @@
+% (c) Nikita Lisitsa, lisyarus@gmail.com, 2026
+
+\documentclass[10pt]{beamer}
+
+\usepackage[T2A]{fontenc}
+\usepackage[russian]{babel}
+\usepackage{minted}
+
+\usepackage[most]{tcolorbox}
+\tcbuselibrary{minted}
+
+\usepackage{graphicx}
+\graphicspath{ {./images/} }
+
+\usepackage{adjustbox}
+
+\usepackage{color}
+\usepackage{soul}
+
+\usepackage{hyperref}
+
+\usetheme{metropolis}
+
+\definecolor{red}{rgb}{1,0,0}
+\definecolor{codebg}{RGB}{29,35,49}
+\setminted{fontsize=\footnotesize}
+
+\makeatletter
+\newcommand{\slideimage}[1]{
+  \begin{figure}
+    \begin{adjustbox}{width=\textwidth, totalheight=\textheight-2\baselineskip-2\baselineskip,keepaspectratio}
+      \includegraphics{#1}
+    \end{adjustbox}
+  \end{figure}
+}
+\makeatother
+
+\title{Язык программирования C++}
+\subtitle{Лекция 9: ссылки, перегрузка функций, new/delete, ООП, классы, инкапсуляция}
+\date{2026}
+\author{Никита Лисица}
+
+\setbeamertemplate{footline}[frame number]
+
+\begin{document}
+
+\frame{\titlepage}
+
+\begin{frame}
+\frametitle{Немного истории}
+\begin{itemize}
+\item \textbf{1979--1985}: Бьёрн Страуструп, работая в Bell Labs, проектирует и реализует новый язык на основе C
+\pause
+\item Конец \textbf{80-х -- 90-е}: Язык набирает популярность
+\pause
+\item \textbf{1998}: Первый официальный стандарт -- C++98
+\pause
+\item \textbf{2003}: Дополнение к стандарту -- C++03
+\pause
+\item \textbf{2000-е}: Язык развивается медленно в сравнении с другими языками того же времени (Java, C\#, Python, Scala, F\#, ...)
+\pause
+\item \textbf{2011}: Стандарт C++11, привнёсший много нового и изменивший взгляд на C++ (т.н. \textit{Modern C++})
+\pause
+\item \textbf{Дальше}: Новый стандарт каждые 3 года (C++14, C++17, C++21, C++23, C++26)
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{Немного контекста}
+\begin{itemize}
+\item Начиная с 90х годов, C++ -- \textbf{основной язык} для низкоуровневых, высокопроизводительных систем
+\pause
+\item Все браузеры, программы для обработки графики и видео, крупные игровые движки и т.д. написаны на C++
+\pause
+\item Сегодня C++ \textit{частично} замещается другими языками (Rust, Go, D)
+\pause
+\item Тем не менее, согласно \href{https://www.tiobe.com/tiobe-index/}{\alert{\underline{TIOBE Index}}}, C++ всё ещё на \textbf{третьем месте} по популярности (после Python и C)
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{Немного контекста}
+\begin{itemize}
+\item С++ -- безумно сложный язык (в стандарте сейчас около 2400 страниц)
+\pause
+\item Пытается совместить низкоуровневость C и высокоуровневые концепции
+\pause
+\item Взаимодействие всех аспектов языка приводит к тысячам нюансов и неочевидных спецэффектов
+\pause
+\item В балансе между простотой использования и мощностью языковых конструкций C++ выбирает второе :)
+\pause
+\item Полезно изучить, даже если не планируете его использовать
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Процесс компиляции}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Компиляция C++ происходит так же, как компиляция C
+\pause
+\item Исходный код делится на файлы, которые компилируются по отдельности, и собираются вместе линковщиком в результирующую программу/библиотеку
+\pause
+\item Файлы с кодом на C++ обычно имеют расширение \nolinkurl{.cpp}, реже \nolinkurl{.cxx} или \nolinkurl{.cc}
+\pause
+\item Заголовочные файлы на C++ обычно имеют расширение \nolinkurl{.h} или \nolinkurl{.hpp} (чтобы отличать от C-файлов), реже \nolinkurl{.hh} или \nolinkurl{.hxx}
+\pause
+\item \textbf{NB:} Заголовочные файлы стандартной библиотеки C++ не имеют расширения, напр. \mintinline{cpp}|#include <thread>|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{C++ vs C}
+\begin{itemize}
+\item C++ наследует почти всё, что есть в C, но есть отличия
+\pause
+\item Самое важное -- нет неявных приведений типов указателей:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int *pi = ...;
+char *pc = ...;
+
+// Можно в C, ошибка компиляции в C++
+pi = pc;
+
+// В C++ нужно явное приведение типа
+pi = (int*)pc;
+
+// Приводить к void* в C++ всё ещё можно
+void *pv = pi;
+
+// Но не обратно (ошибка компиляции в C++)
+pc = pv;
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Выделение/освобождение памяти: new/delete}
+\begin{itemize}
+\usemintedstyle{tango}
+\item В C++ обычно память выделяют/освобождают не \textit{функциями} \mintinline{cpp}|malloc/free|, а \textit{операторами} \mintinline{cpp}|new/delete|:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Аналог malloc(sizeof(int))
+int *pi = new int;
+
+// Аналог free(pi)
+delete pi;
+
+// Аналог malloc(N * sizeof(int))
+int *array = new int[N];
+
+// Аналог free(array)
+delete [] array;
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item \mintinline{cpp}|new| и \mintinline{cpp}|delete| -- \textit{операторы} языка, они обрабатываются напрямую компилятором, и знают про тип, который выделяется
+\pause
+\item Это важно для \mintinline{cpp}|sizeof| и для конструкторов/декструкторов (о них позже)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Выделение/освобождение памяти: new/delete}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Указатели, выделенные с помощью \mintinline{cpp}|malloc|, \textbf{нужно} освобождать с помощью \mintinline{cpp}|free|
+\pause
+\item Указатели, выделенные с помощью \mintinline{cpp}|new|, \textbf{нужно} освобождать с помощью \mintinline{cpp}|delete|
+\pause
+\item Указатели, выделенные с помощью \mintinline{cpp}|new[]|, \textbf{нужно} освобождать с помощью \mintinline{cpp}|delete[]|
+\pause
+\item Все три способа могут (и будут) внутри работать по-разному (например, запоминать количество объектов в \mintinline{cpp}|new[]|), и быть несовместимыми
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Ссылки (references)}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Указатели -- один из основных инструментов в C, но бывают неудобны:
+\pause
+\begin{itemize}
+\item Нужно помнить про взятие адреса \mintinline{cpp}|&x| и разыменовывание \mintinline{cpp}|*p|
+\pause
+\item Могут быть нулевыми \mintinline{cpp}|int * p = NULL;|
+\pause
+\item Адрес, на который они указывают, может меняться \mintinline{cpp}|p = &x|
+\end{itemize}
+\pause
+\item В C++ есть альтернатива: \textbf{ссылки}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Ссылки (references)}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Тип ссылки на \mintinline{cpp}|T| обозначается как \mintinline{cpp}|T&| (например, \mintinline{cpp}|int&| -- ссылка на \mintinline{cpp}|int|)
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int x = ...;
+// Здесь & - не взятие адреса, а часть типа
+// int& означает ссылку на int
+int &ref = x;
+
+// Ссылку обязательно нужно проинициализировать!
+int &ref2; // Ошибка компиляции
+
+// Ссылку нельзя перенаправить на другой объект
+int y = 42;
+ref = y; // присваивает переменной x значение 42
+// ref всё ещё указывает на x
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Ссылки (references)}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Разыменование указателя возвращает ссылку
+int *p = ...;
+int &ref = *p;
+
+// У ссылки можно взять адрес - получится
+// адрес объекта, на который она ссылается
+int *q = &ref;
+assert(p == q);
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Ссылки (references)}
+\begin{itemize}
+\usemintedstyle{tango}
+\item В целом, ссылка на объект ведёт себя как \textit{синоним} имени этого объекта
+\pause
+\item Самый близкий аналог в C -- \mintinline{cpp}|T *const|, но без операторов взятия адреса и разыменования
+\pause
+\item В бинарном (скомипилированном) коде ссылка выглядит так же, как указатель -- просто адрес в памяти
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Ссылки (references)}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Ссылка может указывать на константный или неконстантный объект:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int x = ...;
+int &ref = x;
+const int &cref = x;
+
+// Через неконстантную ссылку можно
+// менять значение переменной x
+ref = 42;
+
+// Через константную ссылку нельзя - 
+// ошибка компиляции
+cref = 42;
+
+const int y = ...;
+// Ошибка компиляции: нельзя взять неконстантную
+// ссылку на константную переменную
+int &yref = y;
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Ссылки (references)}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Аргументы функции могут быть ссылками:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+void swap(int &x, int &y)
+{
+  int temp = x;
+  x = y;
+  y = temp;
+}
+
+// Для вызова функции swap не нужны
+// операторы взятия адреса:
+int a = 3, b = 5;
+swap(a, b);
+\end{tcblisting}
+\pause
+\item У этого есть минус: по вызову функции не всегда понятно, что копируется, а что берётся по ссылке (нужно смотреть сигнатуру вызываемой функции)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Перегрузка функций (function overloading)}
+\begin{itemize}
+\usemintedstyle{tango}
+\item В языке C нельзя иметь несколько функций с одним именем (т.е. \textit{перегрузить} имя функции)
+\pause
+\item В C++ -- \textbf{можно}! Но они должны отличаться набором (количеством и/или типами) аргументов:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int max(int x, int y) { ... }
+
+int max(int x, int y, int z) { ... }
+
+// Ошибка компиляции: отличается только тип
+// возвращаемого значения
+double max(int x, int y) { ... }
+
+// OK - отличается тип первого аргумента
+double max(double x, int y) { ... }
+\end{tcblisting}
+\pause
+\item Очень полезно, когда нужно реализовать похожую логику для разных типов данных или с разными настройками
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Перегрузка функций: name mangling}
+\begin{itemize}
+\usemintedstyle{tango}
+\item После компиляции линковщик подставляет адреса нужных функций в места их вызова
+\pause
+\item Если функция перегружена, есть несколько функций с одинаковым именем -- какую он должен выбрать?
+\pause
+\item Можно было бы научить линковщик правилам перегрузки C++, но не хотелось бы
+\pause
+\item Решение: \textbf{name mangling}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Перегрузка функций: name mangling}
+\begin{itemize}
+\usemintedstyle{tango}
+\item При компиляции C++ имена функций преображаются компилятором так, чтобы функции с разным количеством/типами аргументов превращались в разные \textit{mangled} имена
+\pause
+\item Конкретный алгоритм преобразования зависит от системы и компилятора (т.е. является частью ABI)
+\pause
+\item Name mangling важен для классов и неймспейсов, о них позже
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Перегрузка функций: name mangling}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Под Linux можно узнать mangled имена командой \mintinline{bash}|readelf -s file.o|:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// -> _Z3maxii
+int max(int x, int y) { ... }
+
+// -> _Z3maxiii
+int max(int x, int y, int z) { ... }
+
+// -> _Z3maxff
+double max(double x, int y) { ... }
+
+// -> _Z3maxPcS_
+char * max(char *p, char * q) { ... }
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{ООП (объектно-ориентированное программирование)}
+\begin{itemize}
+\usemintedstyle{tango}  
+\item Обычно говорят, что C++ -- объектно-ориентированный язык
+\pause
+\item Правильнее сказать, что C++ поддерживает объектно-ориентированную парадигму (методологию, стиль) программирования
+\pause
+\item Можно писать на C++, вообще не используя ООП-механизмы, но обычно так не делают :)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{ООП (объектно-ориентированное программирование)}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Что вообще такое ООП? \pause Три принципа:
+\pause
+\item Инкапсуляция
+\begin{itemize}
+\item Механизм языка, ограничивающий доступ одних компонентов программы к другим
+\item Языковая конструкция, связывающая данные с методами для их обработки
+\end{itemize}
+\pause
+\item Наследование
+\begin{itemize}
+\item Механизм, позволяющий `отнаследовать' данные и функциональность одного объекта другим, способствуя переиспользованию кода
+\end{itemize}
+\pause
+\item Полиморфизм
+\begin{itemize}
+\item Способность одного и того же кода обрабатывать разные типы данных
+\end{itemize}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{ООП в C++: Классы}
+\begin{itemize}
+\usemintedstyle{tango}
+\item В C++ объектно-ориентированное программирование выражается посредством \textbf{классов}
+\pause
+\item Проще всего смотреть на классы как на навороченные структуры (точное отличие классов и структур обсудим позднее)
+\pause
+\item Объявление класса:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Array - имя типа, аналогично структурам в С
+class Array {
+  // Поля (данные) класса, аналогично структурам в C
+  int *data;
+  size_t size;
+
+  // Методы: функции, которые можно вызывать у объектов класса
+  void set(size_t index, int value);
+  void fill(int value);
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Динамический массив без классов}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int *array = new int[size];
+
+// Как-то работаем с массивом
+for (...)
+  array[i] = ...;
+
+delete[] array;
+\end{tcblisting}
+\pause
+\item Чем плох такой динамический массив?
+\pause
+\usemintedstyle{tango}
+\begin{itemize}
+\item Нужно не забыть выделить память
+\item Нужно не выйти за его границы
+\item Нужно не перепутать размер (напр. в цикле \mintinline{cpp}|for|)
+\item Нужно не забыть освободить память
+\end{itemize}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Класс динамического массива}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// array.h
+
+class Array {
+// Инкапсуляция: приватные поля недоступны снаружи объекта
+private:
+  size_t size;
+  int *data;
+
+// Публичный интерфейс класса
+public:
+  
+  // Конструктор - создаёт объект
+  Array(size_t size);
+
+  // Деструктор - удаляет объект
+  ~Array();
+
+  // Доступ к элементам
+  int get(size_t index);
+  void set(size_t index, value);
+};
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Класс динамического массива}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// array.сpp
+
+// Реализация конструктора
+Array::Array(size_t size) {
+{
+  // this - указатель на объект, у которого вызвали метод
+  this->size = size;
+  data = new int[size];
+}
+
+// Реализация деструктора
+Array::~Array() {
+  delete[] data;
+}
+
+// Реализация методов
+int Array::get(size_t index) {
+  return data[index];
+}
+
+void Array::set(size_t index, value) {
+  data[index] = value;
+}
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Класс динамического массива}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+#include <array.h>
+
+void test_array() {
+  // Вызов конструктора, size = 100
+  Array a(100);
+
+  // Ошибка компиляции: нет параметра конструктора
+  Array b;
+
+  // Ошибка компиляции: data - приватное поле
+  a.data[10] = 42;
+
+  // OK, вызов метода класса
+  a.set(10, 42);
+
+  // Здесь автоматически(!) вызовется деструктор a
+  // Как будто мы написали a.~Array() (не надо так писать самим!)
+}
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Немного о терминологии}
+\usemintedstyle{tango}
+\begin{itemize}
+\item \mintinline{cpp}|int x;|
+\pause
+\begin{itemize}
+\item \mintinline{cpp}|int| -- \textbf{тип} переменной
+\item \mintinline{cpp}|x| -- \textbf{имя} переменной
+\end{itemize}
+\pause
+\item \mintinline{cpp}|Array a;|
+\pause
+\begin{itemize}
+\item \mintinline{cpp}|Array| -- \textbf{класс (class)} (он в том числе является типом!)
+\item \mintinline{cpp}|a| -- \textbf{объект/экземпляр (object/instance)} класса (во многом ведёт себя как переменная)
+\item \mintinline{cpp}|data| -- \textbf{поле (field/member)} класса
+\item \mintinline{cpp}|set()| -- \textbf{метод (method)} класса
+\end{itemize}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Класс динамического массива}
+\usemintedstyle{lightbulb}
+\begin{itemize}
+\item Добавим \textit{метод}, позволяющий получить размер массива:
+\pause
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Array {
+...
+public:
+  ...
+
+  // Методы можно реализовывать прямо в объявлении класса!
+  // Тогда они автоматически считаются inline
+  size_t get_size() {
+    return size;
+  }
+};
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Пришлось назвать его \mintinline{cpp}|get_size()| а не \mintinline{cpp}|size()|, потому что такое имя конфликтовало бы с \textit{полем} \mintinline{cpp}|size|
+\pause
+\item Из-за этого приватные поля часто называют с префиксами/суффиксами, например \mintinline{cpp}|mSize| (m от member) или \mintinline{cpp}|size_|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Конструкторы}
+\usemintedstyle{lightbulb}
+\begin{itemize}
+\item Конструктор класса -- просто особенная функция (но без возвращаемого значения!), и его можно перегружать:
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// array.h
+
+class Array {
+...
+public:
+  // Выделить память, оставить непроинициализированной
+  Array(size_t size);
+
+  // Выделить память, заполнить значением value
+  Array(size_t size, int value);
+
+  // Создать массив нулевого размера
+  Array();
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Конструкторы}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// array.cpp
+
+Array::Array(size_t size) {
+  this->size = size;
+  data = new int[size];
+}
+
+Array::Array(size_t size, int value) {
+  this->size = size;
+  data = new int[size];
+  for (size_t i = 0; i < size; ++i)
+    data[i] = value;
+}
+
+Array::Array() {
+  size = 0;
+  data = nullptr; // более безопасный аналог NULL
+}
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Конструктор по умолчанию}
+\usemintedstyle{lightbulb}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Конструктор без аргументов \mintinline{cpp}|Array()| называется конструктором по умолчанию (default constructor)
+\pause
+\usemintedstyle{lightbulb}
+\item Его нужно вызывать без скобок:
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// OK, вызов конструктора по умолчанию
+Array a;
+\end{tcblisting}
+\pause
+\item А со скобками не получится:
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Не OK, это объявление функции a() без аргументов,
+// возвращающей объект класса Array
+Array a();
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Неявный конструктор по умолчанию}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\item Если не написать ни одного конструктора, компилятор сам добавит конструктор по умолчанию, который ничего не делает:
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+Array::Array() {}
+\end{tcblisting}
+\pause
+\item Аналогично с деструктором:
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+Array::~Array() {}
+\end{tcblisting}
+\pause
+\item \textbf{NB:} конструкторы/деструкторы класса всегда автоматически вызывают конструкторы/деструкторы всех полей, об этом позже
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{C-style инкапсуляция}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+typedef struct {
+  size_t size;
+  int *data;
+} array_t;
+
+void init(array_t *array, size_t size) {
+  array->size = size;
+  array->data = malloc(size * sizeof(int));
+}
+
+void destroy(array_t *array) {
+  free(array->data);
+}
+
+int main() {
+  array_t a;
+  init(&a, 100);
+  destroy(&a);
+}
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Релизация инкапсуляции в C++}
+\usemintedstyle{lightbulb}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Компилятор превращает код с классами во что-то похожее на C-style инкапсуляцию
+\pause
+\item Все проверки на public/private происходят во время компиляции, в бинарном коде они уже не нужны
+\pause
+\item Методы класса превращаются в функции, принимающие дополнительный параметр \mintinline{cpp}|this| (часто у таких функций другой calling convention, см. thiscall)
+\pause
+\item Конструкторы и деструкторы, аналогично методам, превращаются в функции, и вызываются компилятором автоматически в нужных местах
+\end{itemize}
+\end{frame}
+
+\end{document}
