@@ -1,0 +1,1101 @@
+% (c) Nikita Lisitsa, lisyarus@gmail.com, 2026
+
+\documentclass[10pt]{beamer}
+
+\usepackage[T2A]{fontenc}
+\usepackage[russian]{babel}
+\usepackage{minted}
+
+\usepackage[most]{tcolorbox}
+\tcbuselibrary{minted}
+
+\usepackage{graphicx}
+\graphicspath{ {./images/} }
+
+\usepackage{adjustbox}
+
+\usepackage{color}
+\usepackage{soul}
+
+\usepackage{hyperref}
+
+\usetheme{metropolis}
+
+\definecolor{red}{rgb}{1,0,0}
+\definecolor{codebg}{RGB}{29,35,49}
+\setminted{fontsize=\footnotesize}
+
+\makeatletter
+\newcommand{\slideimage}[1]{
+  \begin{figure}
+    \begin{adjustbox}{width=\textwidth, totalheight=\textheight-2\baselineskip-2\baselineskip,keepaspectratio}
+      \includegraphics{#1}
+    \end{adjustbox}
+  \end{figure}
+}
+\makeatother
+
+\title{Язык программирования C++}
+\subtitle{Лекция 10: конструктор копирования, оператор присваивания, const, перегрузка операторов}
+\date{2026}
+\author{Никита Лисица}
+
+\setbeamertemplate{footline}[frame number]
+
+\begin{document}
+
+\frame{\titlepage}
+
+\begin{frame}[fragile]
+\frametitle{Вспоминаем прошлую лекцию}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Array {
+private:
+  size_t size;
+  int * data;
+
+public:
+  Array();
+  Array(size_t size);
+  ~Array();
+
+  int get(size_t index);
+  void set(size_t index, int value);
+};
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Конструктор копирования (copy constructor)}
+\usemintedstyle{lightbulb}
+\begin{itemize}
+\item Часто полезно создать копию объекта
+\pause
+\item Можно сделать для этого отдельный метод:
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Array {
+  ...
+public:
+  ...
+  Array copy();
+};
+\end{tcblisting}
+\pause
+\item Но иногда хочется пользоваться объектами класса как обычными переменными, и использовать обычный синтаксис копирования:
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+Array a(10);
+Array b = a;
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Конструктор копирования (copy constructor)}
+\usemintedstyle{lightbulb}
+\begin{itemize}
+\item По умолчанию объекты классов тоже умеют копироваться, как структуры, т.е. просто копируя все поля
+\pause
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+Array a(10);
+Array b = a;
+\end{tcblisting}
+\item Где проблема? \pause Оба объекта ссылаются на один и тот же массив с данными
+\pause
+\item \(\Longrightarrow\) Изменение данных в одном поменяет и в другом
+\pause
+\item \(\Longrightarrow\) Оба в деструкторе попробуют его удалить
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Конструктор копирования (copy constructor)}
+\usemintedstyle{lightbulb}
+\begin{itemize}
+\item Решение: конструктор копирования
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Array {
+  ...
+public:
+  ...
+  // Конструктор копирования
+  Array(const Array& other) {
+    size = other.size;
+    data = new int [size];
+    for (size_t i = 0; i < size; ++i)
+      data[i] = other.data[i];
+  }
+};
+\end{tcblisting}
+\pause
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Вызывается конструктор от size_t
+Array a(10);
+
+// Вызывается конструктор копирования
+Array b = a;
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Конструктор копирования (copy constructor)}
+\usemintedstyle{lightbulb}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \textbf{NB:} Передача в функцию по значению или \mintinline{cpp}|return| -- тоже вызов копирования:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+Array makeArray() {
+  ...
+  // Вызов конструктора копирования для возвращаемого значения
+  return a;
+}
+\end{tcblisting}
+\pause
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+void print(Array a) {
+  ...
+}
+
+Array a(10);
+
+// Вызов конструктора копирования для аргумента функции
+print(a);
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Конструктор копирования (copy constructor)}
+\usemintedstyle{lightbulb}
+\begin{itemize}
+\item Что не так в этом коде?
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+void print(Array a) {
+  for (size_t i = 0; i < a.get_size(); i++) {
+    printf("%d,", a.get(i));
+  }
+}
+\end{tcblisting}
+\pause
+\item Функция использует массив только для чтения \(\Longrightarrow\) незачем делать копию (это не бесплатно), лучше передать по константной ссылке:
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+void print(const Array& a) {
+  ...
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Конструктор копирования (copy constructor)}
+\usemintedstyle{lightbulb}
+\begin{itemize}
+\item Почему конструктор копирования не объявить вот так?
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Array {
+  ...
+public:
+  Array(Array other);
+}
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Массив \mintinline{cpp}|other| тоже надо как-то передать внутрь конструктора копирования
+\pause
+\item \(\Longrightarrow\) Бесконечная рекурсия :)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Оператор присваивания (copy assignment)}
+\usemintedstyle{lightbulb}
+\begin{itemize}
+\item В чём разница между этими двумя строками?
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+/* 1 */ int b = a;
+/* 2 */ b = a;
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item В первом случае объект \textit{создаётся}, и \textit{инициализируется} копией \mintinline{cpp}|b|
+\pause
+\item Во втором случае объект \textit{уже создан}, и \textit{перезаписывается} копией \mintinline{cpp}|b|
+\pause
+\item Не очень важно для примитивных типов, но важно для классов!
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Оператор присваивания (copy assignment)}
+\usemintedstyle{lightbulb}
+\begin{itemize}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+Array a(10), b(20);
+
+// Перезапись копированием
+b = a;
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Так же как с копированием, по умолчанию просто скопируются все поля \(\Longrightarrow\) все те же проблемы, + утечка памяти массива \mintinline{cpp}|b|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Оператор присваивания (copy assignment)}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// array.h
+class Array {
+  ...
+public:
+  // Оператор присваивания
+  void operator = (const Array& other);
+};
+\end{tcblisting}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// array.cpp
+
+// Для разнообразия, реализовали в .cpp
+void Array::operator = (const Array& other) {
+  delete [] data;
+  size = other.size;
+  data = new int [size];
+  for (size_t i = 0; i < size; ++i)
+    data[i] = other.data[i];
+}
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Оператор присваивания (copy assignment)}
+\usemintedstyle{lightbulb}
+\begin{itemize}
+\item Более идиоматичный вариант:
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+Array& Array::operator = (const Array& other) {
+  if (&other == this) {
+    return *this;
+  }
+  delete [] data;
+  size = other.size;
+  data = new int [size];
+  for (size_t i = 0; i < size; ++i)
+    data[i] = other.data[i];
+  return *this;
+}
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Зачем проверка \mintinline{cpp}|&other == this|? \pause Для самоприсваивания: \mintinline{cpp}|a = a;|
+\pause
+\item Зачем возвращать \mintinline{cpp}|*this|? \pause Например, для \textit{chained assignment}: \mintinline{cpp}|a = b = c;|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Явные/неявные конструкторы}
+\begin{itemize}
+\usemintedstyle{tango}
+\item С конструктором \mintinline{cpp}|Array(size_t)| есть проблема:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+void print(Array array) { ... }
+
+// Эквивалентно print(Array(10))
+// Происходит неявное преобразование
+// size_t -> Array
+print(10);
+
+// Эквивалентно Array a(10)
+Array a = 10;
+
+Array someFunc() {
+  // Тоже неявное преобразование
+  return 10;
+}
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Инициализация присваиванием \mintinline{cpp}|a = 10| выглядит странно
+\pause
+\item Вызов \mintinline{cpp}|print(10)| может делать вообще не то, что мы задумали, особенно с учётом перегрузки функций
+\pause
+\item \mintinline{cpp}|return 10;| -- скорее всего, опечатка
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Явные/неявные конструкторы}
+\begin{itemize}
+\item Решение: конструктор можно пометить как \textbf{явный (explicit)}:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Array {
+public:
+  explicit Array(size_t size);
+  ...
+};
+
+// OK, это явный вызов конструктора
+Array a(10);
+
+// Ошибка компиляции
+Array a = 10;
+
+// Ошибка компиляции: неявное
+// преобразование запрещено
+print(10);
+
+Array someFunc() {
+  // Ошибка компиляции
+  return 10;
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{(N)RVO, copy elision}
+\begin{itemize}
+\item Во что компилируется такой код?
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+Array makeArray() {
+  ...
+  return Array(10);
+}
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Функция, вызывающая \mintinline{cpp}|makeArray()|, заводит на стеке место под возвращаемое значение, и передаёт его адрес в \mintinline{cpp}|makeArray()|
+\item \mintinline{cpp}|makeArray()| создаёт локальный объект \mintinline{cpp}|Array(10)|, затем \textit{копирует} его в возвращаемое значение
+\pause
+\item Временный объект \mintinline{cpp}|Array(10)| после этого сразу удалится \(\Longrightarrow\) можно его создать сразу на месте возвращаемого значения
+\pause
+\item Эта оптимизация называется (U)RVO -- \textit{(Unnamed) Return Value Optimization}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{(N)RVO, copy elision}
+\begin{itemize}
+\item Вариант чуть сложнее:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+Array makeArray() {
+  Array array(10);
+  ...
+  return array;
+}
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Здесь объект создаётся задолго до \mintinline{cpp}|return|, тоже копируется в возвращаемое значение и потом не нужен \(\Longrightarrow\) его тоже можно создать сразу на месте возвращаемого значения
+\pause
+\item Эта оптимизация называется NRVO -- \textit{Named Return Value Optimization}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{(N)RVO, copy elision}
+\begin{itemize}
+\item Общее название для этих оптимизаций -- \textit{copy elision}
+\pause
+\item Их делают компиляторы за нас :)
+\pause
+\item Начиная с C++17 URVO обязательна (т.е. всегда вставляется компилятором)
+\pause
+\item После C++11 большинство случаев copy elision свелись к \textit{implicit move}, об этом позже
+\pause
+\item Про это важно помнить, так как компилятор может убрать вызов копирования даже если в нём есть побочные эффекты!
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Конструкторы полей}
+\begin{itemize}
+\item Если у класса есть поля, любой его конструктор должен проинициализировать все поля (т.е. вызвать их конструкторы)
+\pause
+\item По умолчанию, вызовется дефолтный конструктор (который для примитивных типов ничего не делает):
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+Array::Array(size_t size) {
+  // Технически, к этому моменту вызвались дефолтные
+  // конструкторы size и data!
+  this->size = size;
+  data = new int [size];
+}
+\end{tcblisting}
+\pause
+\item Что, если у поля нет дефолтного конструктора?
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Конструкторы полей}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Vector3 {
+public:
+  Vector3(float x, float y, float z);
+};
+
+class RigidBody {
+private:
+  Vector3 position;
+public:
+  RigidBody() {
+    // Ошибка: у поля position нет дефолтного конструктора
+  }
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Конструкторы полей}
+\begin{itemize}
+\item Есть специальный синтаксис для инициализации полей:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+
+class RigidBody {
+private:
+  Vector3 position;
+public:
+  RigidBody() : position(0.f, 0.f, 0.f) {
+    // Не ошибка: у поля position явно вызван конструктор
+  }
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Конструкторы полей}
+\begin{itemize}
+\item Если полей несколько, перечисляем через запятую (в порядке их объявления):
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class RigidBody {
+private:
+  Vector3 position;
+  Quaternion rotation;
+public:
+  RigidBody(float zAngle)
+    : position(0.f, 0.f, 0.f)
+    , rotation(cos(zAngle / 2.f), 0.f, 0.f, sin(zAngle / 2.f))
+  {}
+};
+\end{tcblisting}
+\pause
+\item Если какое-то поле пропущено, у него вызывается дефолтный конструктор
+\pause
+\item В теле (коде) конструктора все поля класса \textbf{уже созданы и проинициализированы}!
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Напоминание: const в языке C}
+\begin{itemize}
+\item Нужен, чтобы более чётко описывать интерфейсы и обезопасить себя от ошибок:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+const int pi = 3;
+// Ошибка компиляции
+pi = 4;
+
+int i = 10;
+const int * ptr = &i;
+// Ошибка компиляции
+*ptr = 42;
+
+// Ошибка компиляции
+int * ptr2 = &pi;
+
+// Явно говорит, что функция не меняет
+// данные в переданном массиве
+size_t strlen(const char* str);
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Напоминание: const в языке C}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Это инициализация массива набором символов
+char str1[] = "Hello, world!";
+
+// Это инициализация указателя адресом в статической памяти
+const char* str2 = "Hello, world!";
+
+// Ошибка компиляции
+char* str3 = "Hello, world!";
+
+// Вероятнее всего, runtime креш
+((char*)str2)[0] = "X";
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Классы и const: константное поле}
+\begin{itemize}
+\item Поля класса могут быть константными, их нельзя менять:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Array {
+private:
+  const size_t size;
+  ...
+public:
+  void resize(size_t new_size) {
+    // Ошибка компиляции: size - константное поле
+    size = new_size;
+  }
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Классы и const: константное поле}
+\begin{itemize}
+\item Константное поле обязательно нужно явно проинициализировать в конструкторе:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Array {
+private:
+  const size_t size;
+  ...
+public:
+  Array() {
+    // Ошибка компиляции: size не проинициализирован
+  }
+
+  Array(size_t size)
+    // OK: первый size это поле, второй - аргумент конструктора
+    : size(size)
+  {}
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Классы и const: константный метод}
+\begin{itemize}
+\item Методы тоже могут быть константными -- их можно вызывать у константных объектов класса
+\pause
+\item По смыслу это методы, не меняющие состояние класса
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Array {
+private:
+  size_t size;
+  ...
+public:
+  size_t get_size() const {
+    return size;
+  }
+
+  int get(size_t index) const {
+    return data[index];
+  }
+
+  // Не const
+  void set(size_t index, int value) {
+    data[index] = value;
+  }
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Классы и const: константный метод}
+\usemintedstyle{lightbulb}
+\begin{itemize}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+const Array array(10);
+
+// OK, константный метод
+array.get_size();
+
+// OK, константный метод
+array.get(5);
+
+// Ошибка компиляции
+array.set(5, 67);
+\end{tcblisting}
+\pause
+\item Константные методы можно вызывать у любых объектов
+\pause
+\item Не-константные методы можно вызывать только у не-константных объектов
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Классы и const: mutable}
+\begin{itemize}
+\item Рассмотрим пример кода -- данные, которые лениво (при первом обращении) читаются с диска:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class InputData {
+private:
+  Array values;
+public:
+  const Array& get() const {
+    if (values.empty()) {
+      InputFile file(...);
+      values.resize(file.readNext());
+      for (size_t i = 0; i < values.size(); ++i)
+        values.set(i, file.readNext());
+    }
+
+    return values;
+  }
+}
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Ошибка компиляции: нельзя модифицировать поле \mintinline{cpp}|values| в константном методе
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Классы и const: mutable}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Решение №1: убрать \mintinline{cpp}|const| у метода \mintinline{cpp}|get()| \pause -- не позволит передавать \mintinline{cpp}|InputData| по константной ссылке и т.п.
+\pause
+\item Решение №2: ключевое слово \mintinline{cpp}|mutable|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Классы и const: mutable}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \mintinline{cpp}|mutable| у поля класса означает, что это поле можно менять \textit{даже из константных методов} класса
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class InputData {
+private:
+  mutable Array values;
+public:
+  const Array& get() const {
+    if (values.empty()) {
+      InputFile file(...);
+      // OK: mutable поле можно менять
+      values.resize(file.readNext());
+      ...
+    }
+
+    return values;
+  }
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Классы и const: mutable}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Почти всегда считается, что использование \mintinline{cpp}|mutable| -- плохой тон, и усложняет чтение кода
+\pause
+\item Два основных применения, где без \mintinline{cpp}|mutable| часто не обойтись: \textit{кеширование} и \textit{мьютексы}
+\pause
+\item \textbf{NB:} Ещё бывают \mintinline{cpp}|mutable| лямбды, это не плохой тон, но о них позже :)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Операторы}
+\begin{itemize}
+\usemintedstyle{tango}
+\item В C++ очень много операторов (\(\geq\) 60), вот некоторые из них:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+a++ ++a a-- --a +a -a !a ~a
+a() a[] a.b a->b a.*b *a &a
+a+b a-b a*b a/b a%b a>>b a<<b
+a&b a|b a^b a&&b a||b
+a==b a!=b a<b a<=b a>b a>=b a<=>b
+a=b a+=b a-=b a*=b a/=b a%=b
+a&=b a|=b a^=b a>>=b a<<=b
+a?b:c a,b
+\end{tcblisting}
+\pause
+\item Как и функции, их можно перегружать, но только если один из аргументов -- пользовательский тип (т.е. класс)
+\pause
+\usemintedstyle{tango}
+\item Перегружать можно почти всё, исключения -- оператор доступа \mintinline{cpp}|a.b|, оператор доступа по указателю на поле \mintinline{cpp}|a.*b|, тернарный условный оператор \mintinline{cpp}|a?b:c|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Перегрузка операторов}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Рассмотрим класс длинной арифметики \mintinline{cpp}|BigInt|: как для него определить оператор сложения? Два варианта:
+\pause
+\item Как свободную функцию
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+BigInt operator+(const BigInt& a, const BigInt& b) {
+  ...
+}
+\end{tcblisting}
+\pause
+\item Как особый метод класса
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+BigInt BigInt::operator+(const BigInt& b) {
+  // Здесь левый аргумент это this
+  ...
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Перегрузка операторов}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+BigInt a, b;
+...
+// Вызывает operator+(a, b) либо a.operator+(b)
+// В зависимости от того, кто из них определён
+BitInt c = a + b;
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Перегрузка операторов}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Как лучше: внутри класса \mintinline{cpp}|BigInt::operator+(BigInt)| или снаружи \mintinline{cpp}|operator+(BigInt,BigInt)|?
+\pause
+\item Пусть есть конструктор \mintinline{cpp}|BigInt(int)|. Рассмотрим ситуации:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+BigInt a = 10, b = 20;
+
+// OK в любом случае
+a + b;
+
+// OK в любом случае
+a + 3;
+
+// Не OK в случае метода: operator+ объявлен методом в классе
+// BigInt и не имеет отношения к типу int
+3 + a;
+
+// Метода int::operator+(BigInt) быть не может,
+// так как int - не класс :)
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Метод vs функция}
+\begin{itemize}
+\usemintedstyle{tango}
+\item В целом, часто полезно придерживаться следующего правила:
+\pause
+\begin{itemize}
+\item Если функции нужно знание о внутренностях класса, то это должен быть метод
+\pause
+\item Если функции достаточно публичного интерфейса класса, то лучше её сделать свободной функций, принимающей объект класса (например, по ссылке)
+\end{itemize}
+\pause
+\item Это облегчает чтение кода класса и проверку его инвариантов
+\pause
+\item \textbf{NB:} Применимо не всегда, иногда удобство использования важнее чистоты кода :)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Compound assignment}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Операторы вида \mintinline{cpp}|a += b| называются \textit{compound assignment}
+\pause
+\item \mintinline{cpp}|a += b| можно реализовать через \mintinline{cpp}|a + b|, а можно и наоборот
+\pause
+\item Наоборот (\mintinline{cpp}|a + b| через \mintinline{cpp}|a += b|) часто оказывается эффективнее, и тогда \mintinline{cpp}|a += b| приходится делать методом класса, так как ему нужен доступ к внутренним данным класса:
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+BigInt& BigInt::operator+=(const BigInt& other) {
+  // выделяем память, прибавляем, ...
+  return *this;
+}
+
+BigInt operator+(BigInt a, const BigInt& b) {
+  return a += b;
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Оператор доступа по индексу}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Array {
+  ...
+public:
+
+  // Можно было вернуть const int&
+  int operator[](size_t index) const {
+    return data[index];
+  }
+
+  int& operator[](size_t index) {
+    return data[index];
+  }
+}
+\end{tcblisting}
+\pause
+\item Классический паттерн в C++: приходится реализовывать два оператора -- const и не-const
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Оператор доступа по индексу}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Начиная с C++23 есть \mintinline{cpp}|opeator[]| с произвольным числом аргументов:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Matrix {
+  ...
+public:
+  float& operator[](size_t row, size_t column);
+};
+
+Matrix m;
+m[3, 4] = 2.718f;
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Префиксный/постфиксный инкремент/декремент}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Напоминание:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int a = 10;
+
+// Префиксный: сначала прибавить, потом вернуть значение
+int b = ++a;
+// Здесь a = 11, b = 11
+
+// Постфиксный: сначала вернуть значение, потом прибавить
+int c = a++;
+// Здесь a = 12, c = 11
+\end{tcblisting}
+\pause
+\item Как их перегрузить по-отдельности в C++?
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Префиксный/постфиксный инкремент/декремент}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class BigInt {
+...
+public:
+  // Префиксный
+  BigInt& operator++();
+
+  // Постфиксный (возвращает копию!)
+  // int - фикстивный параметр, не используется
+  BigInt operator++(int) {
+    BigInt copy(*this);
+    // Или this->operator++();
+    ++(*this);
+    return copy;
+  }
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Операторы сравнения}
+\begin{itemize}
+\item В общем случае, нужно реализовать 6 штук, 4 из которых в одну строку:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+bool operator==(const BigInt& a, const BigInt& b) { ... }
+bool operator<(const BigInt& a, const BigInt& b) { ... }
+
+bool operator!=(const BigInt& a, const BigInt& b) {
+  return !(a == b);
+}
+
+bool operator>(const BigInt& a, const BigInt& b) {
+  return b < a;
+}
+
+bool operator<=(const BigInt& a, const BigInt& b) {
+  return !(b < a);
+}
+
+bool operator>=(const BigInt& a, const BigInt& b) {
+  return !(a < b);
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Операторы сравнения}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Можно даже \mintinline{cpp}|a == b| выразить через \mintinline{cpp}|a < b|:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+bool operator==(const BigInt& a, const BigInt& b) {
+  return !(a < b) && !(b < a);
+}
+\end{tcblisting}
+\pause
+\item Такой семантики придерживаются некоторые стандартные алгоритмы и структуры данных
+\pause
+\item Часто такая реализация менее эффективна, чем сравнение напрямую
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Default и three-way сравнения}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Начиная с C++20 есть т.н. \textit{three-way comparison} (он же -- \textit{spaceship operator}): \mintinline{cpp}|a <=> b|
+\pause
+\item Возвращает особый тип из трёх значений (меньше, равно, больше), например \mintinline{cpp}|std::strong_ordering|
+\pause
+\item Можно определить только \mintinline{cpp}|a == b| и \mintinline{cpp}|a <=> b|, остальные компилятор выведет за нас
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Оператор приведения типа}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Что, если я хочу, чтобы мой класс можно было приводить к другому типу?
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+B b;
+A a = b;
+A a(b);
+funcOfA(b);
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Два варианта: сделать у \mintinline{cpp}|A| конструктор от \mintinline{cpp}|B|, или сделать у \mintinline{cpp}|B| оператор приведения типа к \mintinline{cpp}|A|
+\pause
+\item \textbf{NB:} Если \mintinline{cpp}|A| -- примитивный тип, ему не получится добавить конструктор, и остаётся только второй вариант
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Оператор приведения типа}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class BigInt {
+public:
+  // Оператор приведения типа BigInt -> double
+  operator double() const {
+    ...
+  }
+};
+
+BigInt x = 10;
+x = pow(x, 10000);
+
+double y = x;
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Оператор приведения типа}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Можно пометить как \mintinline{cpp}|explicit| и разрешить только явное приведение типов:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class BigInt {
+public:
+  explicit operator double() const;
+};
+
+BigInt x = 10;
+
+// Ошибка: неявное приведение
+double y = x;
+
+// OK: явное приведение
+double z = (double)x;
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Лучше всегда помечать \mintinline{cpp}|explicit|, цепочки неявных преобразований типов -- большая головная боль
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Operator bool}
+\begin{itemize}
+\usemintedstyle{tango}
+\item До C++11 приходилось писать странные трюки, чтобы класс можно было использовать аналогично \mintinline{cpp}|bool| -- использовать в \mintinline{cpp}|if|, \mintinline{cpp}|while|, \mintinline{cpp}|&&| и так далее (см. \textit{safe bool idiom})
+\pause
+\item В C++11 появились \mintinline{cpp}|explicit| операторы приведения типов, и теперь всё это делается просто как \mintinline{cpp}|explicit operator bool()|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Operator bool}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class BigInt {
+public:
+  explicit operator bool() const {
+    return (*this) != 0;
+  }
+};
+
+BigInt x = 10;
+
+// Ошибка: неявное приведение типов
+bool b = x;
+
+// А тут можно :)
+if (x) {
+  ...
+}
+\end{tcblisting}
+\end{frame}
+
+\end{document}
