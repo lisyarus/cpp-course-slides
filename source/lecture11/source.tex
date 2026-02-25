@@ -1,0 +1,549 @@
+% (c) Nikita Lisitsa, lisyarus@gmail.com, 2026
+
+\documentclass[10pt]{beamer}
+
+\usepackage[T2A]{fontenc}
+\usepackage[russian]{babel}
+\usepackage{minted}
+
+\usepackage[most]{tcolorbox}
+\tcbuselibrary{minted}
+
+\usepackage{graphicx}
+\graphicspath{ {./images/} }
+
+\usepackage{adjustbox}
+
+\usepackage{color}
+\usepackage{soul}
+
+\usepackage{hyperref}
+
+\usetheme{metropolis}
+
+\definecolor{red}{rgb}{1,0,0}
+\definecolor{codebg}{RGB}{29,35,49}
+\setminted{fontsize=\footnotesize}
+
+\makeatletter
+\newcommand{\slideimage}[1]{
+  \begin{figure}
+    \begin{adjustbox}{width=\textwidth, totalheight=\textheight-2\baselineskip-2\baselineskip,keepaspectratio}
+      \includegraphics{#1}
+    \end{adjustbox}
+  \end{figure}
+}
+\makeatother
+
+\title{Язык программирования C++}
+\subtitle{Лекция 11: временные объекты, new/delete с объектами, умные указатели, наследование}
+\date{2026}
+\author{Никита Лисица}
+
+\setbeamertemplate{footline}[frame number]
+
+\begin{document}
+
+\frame{\titlepage}
+
+\begin{frame}[fragile]
+\frametitle{Временные объекты}
+\begin{itemize}
+\item Из-за присутствия конструкторов и деструкторов, в C++ приходится внимательнее следить за временем жизни объектов
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int max(int a, int b) {
+  return a < b ? b : a;
+}
+
+int main() {
+  // `a` живёт от этой строки и до конца main
+  int a = 2;
+
+  // `b` живёт от этой строки и до конца main
+  int b = 3;
+
+  max(a, b);
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Временные объекты}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Что происходит, если написать \mintinline{cpp}|max(2, 3)|? \pause Создаются временные объекты:
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int max(int a, int b) {
+  return a < b ? b : a;
+}
+
+int main() {
+  // Здесь, `2` и `3` это временные объекты
+  // Они создаются перед вызовом функции, и
+  // живут до окончания выполнения всего выражения
+  // Возвращаемое значение - тоже временный объект
+  max(2, 3);
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Временные объекты}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Это не очень важно для встроенных типов, но важно для классов с нетривиальными конструкторами:
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+BigInt max(const BigInt& a, const BigInt& b) {
+  return a < b ? b : a;
+}
+
+int main() {
+  // В этой строке создаются два временных объекта
+  // типа BigInt
+  max(
+    BigInt("12347987955"),
+    BigInt("867577959256")
+  );
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Параметры по умолчанию}
+\begin{itemize}
+\usemintedstyle{tango}
+\item У функций можно указывать параметры по умолчанию, тогда их не обязательно передавать:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+void startServer(const char* name, int port = 8080,
+  const char* host = "0.0.0.0");
+
+int main()
+{
+  startServer("minecraft", 25565, "127.0.0.1");
+  startServer("minecraft", 5432);
+  startServer("ping");
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Параметры по умолчанию}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Они могут быть только последними параметрами (иначе непонятно, какие параметры передали)
+\pause
+\item Вместе с перегрузкой функций может приводить к неожиданным эффектам или к неопределённости
+\pause
+\item Параметры по умолчанию подставляются компилятором в код вызова функции \(\Longrightarrow\) должны быть описаны в объявлении функции (обычно в header-файле)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{new/delete с объектами}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Пусть, у нас есть класс
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Server {
+public:
+  Server(int port);
+  ~Server();
+};
+\end{tcblisting}
+\pause
+\item Как нам создать объект такого класса в куче?
+\pause
+\usemintedstyle{tango}
+\item \mintinline{cpp}|malloc| позволит выделить память, но не вызовет конструктор
+\pause
+\item \mintinline{cpp}|free| не вызовет деструктор
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{new/delete с объектами}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Решение: \mintinline{cpp}|new/delete|!
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Можем передать параметры конструктора
+Server * server = new Server(5432);
+...
+// Вызывает деструктор
+delete server;
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Почему компилятор сам не вставит вызов деструктора? \pause Он не знает, какое время жизни мы хотим у объекта \mintinline{cpp}|*server|
+\pause
+\item Он вызовет деструктор у самого указателя \mintinline{cpp}|server| -- но деструкторы примитивных типов ничего не делают
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Placement new}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Можно и через \mintinline{cpp}|malloc/free|, но руками вызвать конструктор и деструктор:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+Server * server = malloc(sizeof(Server));
+
+// Особый синтаксис вызова конструктора
+// у объекта по указателю (не выделяет память)
+// - т.н. placement new
+new (server) Server(5432);
+...
+
+// Руками вызываем деструктор
+server->~Server();
+
+free(server);
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Placement new}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Обычно нужно только при реализации структур данных (напр. \mintinline{cpp}|std::vector|), в большинстве случаев хватает обычных \mintinline{cpp}|new/delete|
+\pause
+\item Даже если вы выделили объект через \mintinline{cpp}|malloc| + placement new, его нельзя удалять через \mintinline{cpp}|delete|, только через ручной вызов деструктора + \mintinline{cpp}|free|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{new[]/delete[] с объектами}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Аналогично, \mintinline{cpp}|new[]| не только выделит память, но и вызовет конструктор по умолчанию у всех объектов
+\pause
+\item \mintinline{cpp}|delete[]| пройдётся по всем объектам и вызовет у каждого деструктор
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Вызовет конструктор BigInt() у элементов
+// от bigInts[0] до bigInts[99]
+BigInt * bigInts = new BigInt[100];
+
+// Вызовет деструктор у элементов
+// от bigInts[0] до bigInts[99]
+delete[] bigInts;
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item А если нет конструктора по умолчанию? \pause \mintinline{cpp}|malloc| + placement new
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Умные указатели}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Многовато вызовов \mintinline{cpp}|delete|! Воспользуемся инкапсуляцией и деструкторами \(\Longrightarrow\) \textit{умные указатели}
+\pause
+\item Без умных указателей:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+Object* p = new Object(...);
+p->doSomething();
+// Надо не забыть вызвать delete
+delete p;
+\end{tcblisting}
+\pause
+\item С умными указателями:
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+scoped_ptr p = new Object(...);
+p->doSomething();
+// деструктор scoped_ptr вызовет delete
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{scoped\_ptr}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class scoped_ptr {
+private:
+  Object* ptr_;
+
+public:
+  scoped_ptr(Object* ptr);
+  ~scoped_ptr();
+
+  Object* get() const;
+  Object& operator * () const;
+  Object* operator -> () const;
+  explicit operator bool() const;
+
+  // Запрет копирования после C++11:
+  scoped_ptr(const scoped_ptr& other) = delete;
+  const scoped_ptr& operator = (const scoped_ptr& p) = delete;
+
+  // Запрет копирования до C++11:
+private:
+  scoped_ptr(const scoped_ptr& other);
+  const scoped_ptr& operator = (const scoped_ptr& p);
+};
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{scoped\_ptr}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+scoped_ptr::scoped_ptr(Object* ptr)
+  : ptr_(ptr)
+{}
+
+scoped_ptr::~scoped_ptr() {
+  delete ptr_;
+}
+
+Object* scoped_ptr::get() const { return ptr_; }
+
+Object& scoped_ptr::operator * () const { return *ptr_; }
+
+Object* scoped_ptr::operator -> () const { return ptr_; }
+
+scoped_ptr::operator bool() const { return ptr_ != nullptr; }
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{scoped\_ptr}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Зачем запрет копирования? \pause Чтобы два разных \mintinline{cpp}|scoped_ptr| не пытались удалить один и тот же указатель
+\pause
+\item Как работает \mintinline{cpp}|operator ->|? \pause Возвращает либо указатель (у которого есть встроенный оператор), либо что-нибудь, у чего тоже есть \mintinline{cpp}|operator ->|, и вызывает его рекурсивно
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Умные указатели}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \mintinline{cpp}|scoped_ptr|: нельзя копировать, нельзя передать владение объектом (напр. в функцию или из функции), объект живёт ровно внутри одного scope, только один \mintinline{cpp}|scoped_ptr| указывает на объект
+\pause
+\item \mintinline{cpp}|unique_ptr|: нельзя копировать, можно перемещать (\textit{move}, об этом позже), можно передавать владение, только один \mintinline{cpp}|unique_ptr| указывает на объект
+\pause
+\item \mintinline{cpp}|shared_ptr|: можно копировать (\(\Longrightarrow\) можно передавать владение), несколько \mintinline{cpp}|shared_ptr| могут указывать на один объект
+\pause
+\item \textbf{NB:} На самом деле, умные указатели -- это шаблоны классов, но о шаблонах мы поговорим позже
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{shared\_ptr}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Идея: храним счётчик ссылок
+\pause
+\item Когда \mintinline{cpp}|shared_ptr| копируется, увеличиваем счётчик
+\pause
+\item Когда \mintinline{cpp}|shared_ptr| удаляется, уменьшаем счётчик
+\pause
+\item Когда счётчик доходит до нуля (т.е. удалили последний \mintinline{cpp}|shared_ptr|, ссылавшийся на этот объект), удаляем сам объект
+\pause
+\item \textbf{NB:} Не подходит, если есть циклические ссылки!
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{shared\_ptr}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Счётчик ссылок должен быть общим между всеми копиями \mintinline{cpp}|shared_ptr|, указывающими на один объект \(\Longrightarrow\) его придётся тоже хранить в куче
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class shared_ptr {
+private:
+  struct storage {
+    std::size_t refcount = 0;
+    Object* pointer = nullptr;
+  };
+
+  storage* storage_;
+  
+public:
+  ...
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{shared\_ptr}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Настоящий \mintinline{cpp}|shared_ptr| устроен сложнее
+\pause
+\item Позволяет передать произвольную функцию удаления (по умолчанию делает просто \mintinline{cpp}|delete|)
+\pause
+\item Позволяет ссылаться на часть объекта
+\pause
+\item Позволяет разбивать циклические ссылки или узнавать об удалении объекта через \mintinline{cpp}|weak_ptr|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Наследование}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Одна из основных концепций ООП
+\pause
+\item Хотим переиспользовать код классов в других классах
+\pause
+\item Вариант №1 -- \textit{композиция}: один класс является полем другого
+\pause
+\item Вариант №2 -- \textit{наследование}: один класс строится на базе другого
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Наследование}
+\begin{itemize}
+\usemintedstyle{tango}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Button {
+private:
+  const char* caption_;
+  Action clickAction_;
+
+public:
+  Button(const char* caption)
+    : caption_(caption)
+  {}
+
+  void draw() {
+    drawRectangle(Color::Gray);
+    drawText(caption_);
+  }
+
+  void onClick(Action clickAction) {
+    clickAction_ = clickAction;
+  }
+
+  void click() {
+    clickAction_.execute();
+  }
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Наследование}
+\begin{itemize}
+\usemintedstyle{tango}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class ColoredButton : public Button {
+private:
+  Color color_;
+
+public:
+  ColoredButton(const char* caption, Color color)
+    : Button(caption) // вызов конструктора
+    , color_(color)
+  {}
+
+  void draw() {
+    drawRectangle(color);
+    // Ошибка: caption_ - private поле, об этом позже
+    drawText(caption_);
+  }
+
+  void click() {
+    color_ = Color::Red;
+    // Вызов метода из базового класса
+    Button::click();
+  }
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Наследование}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \mintinline{cpp}|Button| -- \textit{базовый класс (base class)}
+\pause
+\item \mintinline{cpp}|ColoredButton| -- \textit{производный класс (derived class)}, или \textit{класс-наследник}
+\pause
+\item В \mintinline{cpp}|ColoredButton| добавляются все поля и методы из базового класса
+\pause
+\item Конструктор класса-наследника должен вызвать конструктор базового класса (как и с полями, по умолчанию вызовется конструктор без аргументов)
+\pause
+\item Деструктор класса-наследника \underline{автоматически} вызовет деструктор базового класса после того, как вызовет деструкторы всех полей класса-наследника
+\pause
+\item Указатель на класс-наследник автоматически приводится к типу указателя на базовый класс
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Наследование}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Хотим обрабатывать разные объекты одним и тем же кодом:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+Button * buttons[3];
+buttons[0] = new Button("Save");
+buttons[1] = new Button("Load");
+buttons[2] = new ColoredButton("Quit", Color::Blue);
+
+void drawUI() {
+  for (int i = 0; i < 3; ++i)
+    buttons[i]->draw();
+}
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Функция \mintinline{cpp}|drawUI| не знает, какие классы на самом деле лежат по разным указателям, и всегда будет вызывать \mintinline{cpp}|Button::draw()| из базового класса
+\pause
+\item Решение: \textit{виртуальные методы}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Виртуальные методы}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Button {
+public:
+  virtual void draw();
+  virtual void click();
+  ...
+};
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item \mintinline{cpp}|virtual| говорит компилятору, что при вызове этого метода надо посмотреть, какой на самом деле класс лежит по этому указателю, и вызвать правильный метод
+\pause
+\item Теперь \mintinline{cpp}|buttons[2]->draw()| вызовет \mintinline{cpp}|ColoredButton::draw()|!
+\pause
+\item Как это работает, обсудим в следующий раз
+\end{itemize}
+\end{frame}
+
+\end{document}
