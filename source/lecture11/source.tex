@@ -130,7 +130,7 @@ void startServer(const char* name, int port = 8080,
 int main()
 {
   startServer("minecraft", 25565, "127.0.0.1");
-  startServer("minecraft", 5432);
+  startServer("postgresql", 5432);
   startServer("ping");
 }
 \end{tcblisting}
@@ -466,7 +466,7 @@ public:
   {}
 
   void draw() {
-    drawRectangle(color);
+    drawRectangle(color_);
     // Ошибка: caption_ - private поле, об этом позже
     drawText(caption_);
   }
@@ -543,6 +543,165 @@ public:
 \item Теперь \mintinline{cpp}|buttons[2]->draw()| вызовет \mintinline{cpp}|ColoredButton::draw()|!
 \pause
 \item Как это работает, обсудим в следующий раз
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Виртуальный деструктор}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+Button * buttons[3];
+...
+for (int i = 0; i < 3; ++i)
+  delete buttons[i];
+\end{tcblisting}
+\usemintedstyle{tango}
+\item В чём проблема? \pause \mintinline{cpp}|delete| видит указатель на \mintinline{cpp}|Button| и вызывает \mintinline{cpp}|Button::~Button()|
+\pause
+\item Правильный деструктор \mintinline{cpp}|ColoredButton::~ColoredButton()| не будет вызван!
+\pause
+\item Решение: \textit{виртуальный деструктор}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Виртуальный деструктор}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Button {
+public:
+  virtual ~Button();
+  ...
+};
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Работает аналогично виртуальным методам: при вызове деструктора по указателю (в т.ч. как часть \mintinline{cpp}|delete|) компилятор проверит, какой тип на самом деле лежит по указателю, и вызовет правильный деструктор
+\pause
+\item Хорошее правило: если в классе есть хотя бы один виртуальный метод, скорее всего деструктор тоже стоит сделать виртуальным
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Protected уровень доступа}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Как решить проблему с тем, что \mintinline{cpp}|caption_| -- приватное поле класса \mintinline{cpp}|Button|, и недоступно в \mintinline{cpp}|ColoredButton|? \pause Уровень доступа \mintinline{cpp}|protected|:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+public Button {
+protected:
+  const char* caption_;
+  Action clickAction_;
+
+public:
+  ...
+};
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item \mintinline{cpp}|protected| означает, что поле или метод недоступно снаружи класса, но \textbf{доступно} в его наследниках
+\pause
+\item Полезно, если часть деталей реализации класса может быть нужна в наследниках
+\pause
+\item \textbf{NB:} В нашем конкретном случае можно было вместо \mintinline{cpp}|protected| поля сделать \mintinline{cpp}|public| метод \mintinline{cpp}|getCaption()|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Protected и private наследование}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Посмотрим ещё раз на объявление \mintinline{cpp}|ColoredButton|:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class ColoredButton : public Button {
+  ...
+};
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Что означает \mintinline{cpp}|public Button|?
+\pause
+\item Все неприватные поля и методы класса \mintinline{cpp}|Button| будут доступны в классе-наследники с такими же уровнями видимости
+\pause
+\item \mintinline{cpp}|protected Button| -- аналогично, но \mintinline{cpp}|public| поля и методы становятся \mintinline{cpp}|protected| в наследнике
+\pause
+\item \mintinline{cpp}|private Button| -- все неприватные поля и методы становятся \mintinline{cpp}|private| в наследнике
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Protected и private наследование}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Не-\mintinline{cpp}|public| наследование нужно крайне редко, часто считается антипаттерном, и обычно его лучше заменить на композицию (т.е. добавить поле, а не отнаследоваться)
+\pause
+\item При не-\mintinline{cpp}|public| наследовании указатель на класс-наследник \textbf{не приводится} к указателю на базовый класс (потому что тогда модификаторы доступа становятся бесполезными)
+\pause
+\item Лучше не использовать не-\mintinline{cpp}|public| наследование без очень веской причины :)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Отличие class и struct}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Обычно ключевым словом \mintinline{cpp}|struct| описывают простые структуры, аггрегирующие набор данных -- без сложной логики, инициализации, деструкторов, и т.п.
+\pause
+\item Ключевым словом \mintinline{cpp}|class| описывают сложные объекты с нетривиальной логикой
+\pause
+\item На самом деле, в C++ \mintinline{cpp}|class| и \mintinline{cpp}|struct| \textit{почти} не отличаются: структуры тоже могут иметь методы, конструкторы, деструкторы, базовые классы, разграничение доступа, виртуальные методы, и т.д.
+\pause
+\item Но отличия есть, и их ровно два: в уровне доступа по умолчанию и в виде наследования по умолчанию
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Отличие class и struct}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Для \mintinline{cpp}|struct| уровень доступа и вид наследования по умолчанию -- \mintinline{cpp}|public|
+\pause
+\item Другими словами, следующие два примера кода эквивалентны:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+struct A : B {
+  Object x;
+};
+\end{tcblisting}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+struct A : public B {
+public:
+  Object x;
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Отличие class и struct}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Для \mintinline{cpp}|class| уровень доступа и вид наследования по умолчанию -- \mintinline{cpp}|private|
+\pause
+\item Другими словами, следующие два примера кода эквивалентны:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class A : B {
+  Object x;
+};
+\end{tcblisting}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class A : private B {
+private:
+  Object x;
+};
+\end{tcblisting}
 \end{itemize}
 \end{frame}
 
