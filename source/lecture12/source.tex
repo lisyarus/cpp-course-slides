@@ -114,7 +114,7 @@ public:
   ...
 };
 
-Button * button = new ColoredButton(...);
+Button* button = new ColoredButton(...);
 button->draw(); // Что произойдёт?
 \end{tcblisting}
 \pause
@@ -393,9 +393,9 @@ void DoubleList::push_back(int value) {
 \begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
 // Функцию написали задолго до
 // появления DoubleList
-void fill(List *l, int val, size_t num) {
+void fill(List* l, int val, size_t num) {
   for(size_t i = 0; i < num; i++)
-  l->push_back(val);
+    l->push_back(val);
 }
 
 // Код работает без изменений в
@@ -416,6 +416,8 @@ fill(&dl, 100, 24);
 \item Задача: хотим реализовать расширяемую систему логирования
 \pause
 \item Должна позволять логировать сообщения одновременно в разные места (т.н. \textit{sinks} -- в \mintinline{cpp}|stdout|, в файл, и т.п.)
+\pause
+\item Должна поддерживать \textit{уровни логирования}: \mintinline{cpp}|ERROR, WARNING, INFO, DEBUG, TRACE|
 \pause
 \item При добавлении новых sink'ов не хочется переписывать весь код для их поддержки
 \end{itemize}
@@ -498,7 +500,7 @@ protected:
 public:
   FileSink(const char* filename, Level level)
     : Sink(level_)
-    , file_(fopen(filename, "wt"))
+    , file_(fopen(filename, "at"))
   {}
 
   void log(Level level, const char* message) override {
@@ -560,6 +562,8 @@ Sink sinkCopy = fileSink;
 \usemintedstyle{tango}
 \item Скопируется только часть объекта \mintinline{cpp}|fileSink|, отвечающая классу \mintinline{cpp}|Sink|
 \item Вызов методов у \mintinline{cpp}|sinkCopy| вызовет методы класса \mintinline{cpp}|Sink|
+\pause
+\item Лучше всего было бы удалить (\mintinline{cpp}|= delete|) оператор присваивания класса \mintinline{cpp}|Sink|
 \end{itemize}
 \end{frame}
 
@@ -588,6 +592,8 @@ public:
   }
 };
 \end{tcblisting}
+\pause
+\item Как сделать ещё лучше? \pause Использовать умные указатели
 \end{itemize}
 \end{frame}
 
@@ -633,15 +639,17 @@ public:
 \frametitle{Таблица виртуальных функций}
 \begin{itemize}
 \usemintedstyle{tango}
-\item Для каждого класса с виртуальными методами компилятор создаёт особый массив указателей на функции
+\item Для каждого класса с виртуальными методами компилятор создаёт особый массив указателей на функции (один на класс)
 \pause
 \item Для каждого виртуального метода где-то в этом массиве лежит указатель на него
 \pause
-\item В каждый экземпляр класса компилятор добавляет указатель на этот массив в некое фиксированное место (часто -- в начало класса)
+\item В каждый экземпляр класса компилятор добавляет указатель (недоступный программисту!) на этот массив в некое фиксированное место (обычно -- в начало класса)
 \pause
-\item При вызове виртуального метода сначала достаётся нужный элемент из этого массива, и потом вызывается как функция
+\item При вызове виртуального метода сначала достаётся нужный элемент из этого массива, и потом он вызывается как функция
 \pause
 \item \(\Longrightarrow\) Вызов виртуального метода немного дороже, чем вызов обычного метода
+\pause
+\item \(\Longrightarrow\) Размер класса с виртуальными функциями на \mintinline{cpp}|sizeof(void*)| байт больше, чем кажется :)
 \end{itemize}
 \end{frame}
 
