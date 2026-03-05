@@ -1,0 +1,648 @@
+% (c) Nikita Lisitsa, lisyarus@gmail.com, 2026
+
+\documentclass[10pt]{beamer}
+
+\usepackage[T2A]{fontenc}
+\usepackage[russian]{babel}
+\usepackage{minted}
+
+\usepackage[most]{tcolorbox}
+\tcbuselibrary{minted}
+
+\usepackage{graphicx}
+\graphicspath{ {./images/} }
+
+\usepackage{adjustbox}
+
+\usepackage{color}
+\usepackage{soul}
+
+\usepackage{hyperref}
+
+\usetheme{metropolis}
+
+\definecolor{red}{rgb}{1,0,0}
+\definecolor{codebg}{RGB}{29,35,49}
+\setminted{fontsize=\footnotesize}
+
+\makeatletter
+\newcommand{\slideimage}[1]{
+  \begin{figure}
+    \begin{adjustbox}{width=\textwidth, totalheight=\textheight-2\baselineskip-2\baselineskip,keepaspectratio}
+      \includegraphics{#1}
+    \end{adjustbox}
+  \end{figure}
+}
+\makeatother
+
+\title{Язык программирования C++}
+\subtitle{Лекция 12: наследование, полиморфизм, виртуальные функции}
+\date{2026}
+\author{Никита Лисица}
+
+\setbeamertemplate{footline}[frame number]
+
+\begin{document}
+
+\frame{\titlepage}
+
+\begin{frame}[fragile]
+\frametitle{Напоминание про наследование}
+\begin{itemize}
+\item Позволяет нам реализовать один класс поверх другого, переиспользуя его поля и методы:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Button {
+protected:
+  const char* caption_;
+  Action clickAction_;
+
+public:
+  ...
+
+  virtual void draw() {
+    drawRectangle(Color::Gray);
+    drawText(caption_);
+  }
+
+  virtual void click() {
+    clickAction_.execute();
+  }
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Напоминание про наследование}
+\begin{itemize}
+\item Позволяет нам реализовать один класс поверх другого, переиспользуя его поля и методы:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class ColoredButton : public Button {
+protected:
+  Color color_;
+
+public:
+  ...
+
+  // Автоматически virtual
+  void draw() override {
+    drawRectangle(color_);
+    drawText(caption_);
+  }
+
+  // Автоматически virtual
+  void click() override {
+    color_ = Color::Red;
+    Button::click();
+  }
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Override}
+\begin{itemize}
+\item Допустим, мы перепутали название метода в классе-наследнике:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class ColoredButton : public Button {
+public:
+  void drawButton() { ... }
+  ...
+};
+
+Button * button = new ColoredButton(...);
+button->draw(); // Что произойдёт?
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Вызовется метод \mintinline{cpp}|Button::draw()|, так как метод \mintinline{cpp}|ColoredButton::drawButton()| не имеет к нему никакого отношения
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Override}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Ключевое слово \mintinline{cpp}|override| заставит компилятор проверить, что метод \textit{переопределяет} какой-то вирутальный метод базового класса
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class ColoredButton : public Button {
+public:
+  // Ошибка компиляции
+  void drawButton() override { ... }
+  ...
+};
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Хорошая идея -- \textbf{всегда} писать \mintinline{cpp}|override|, когда вы переопределяете виртуальный метод
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Override vs overload}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Переопределение методов (override) не стоит путать с перегрузкой (overload) функций или методов
+\pause
+\item Переопределение: метод в классе-наследнике перекрывает виртуальный метод базового класса:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class B : public A {
+public:
+  void exec() override { ... }
+};
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Перегрузка: две функции (или два метода одного класса) имеют одинаковое имя, но разные аргументы:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class B {
+public:
+  void exec(int x) { ... }
+  void exec(float x) { ... }
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Пример: странный связный список, list.h}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class List {
+private:
+  int value;
+  List* next;
+
+public:
+  List(int value);
+  ~List();
+
+  void push_back(int value);
+  size_t length() const;
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Пример: странный связный список, list.cpp}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+#include "list.h"
+
+List::List(int value) {
+  this->value = value; this->next = nullptr;
+}
+
+~List::List() { /* Упражнение :) */ }
+
+void List::push_back(int value) {
+  List* current = this;
+  while (current->next != NULL)
+    current = current->next;
+  current->next = new List(value);
+}
+
+size_t List::length() const {
+  // В константном методе this имеет тип const List* const
+  size_t count = 0; const List* current = this;
+  while (current->next != NULL) {
+    current = current->next; ++count;
+  }
+  return count;
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Пример: странный связный список}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Почему он странный?
+\pause
+\item Смешаны понятия списка и одного узла (node)
+\pause
+\item Не бывает пустым
+\pause
+\item Все операции за линейное время
+\pause
+\item Это не страшно, пример педагогический :)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Пример: странный двусвязный список, double\_list.h}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Позже решили добавить двусвязный список, отнаследовшись от уже имеющегося -- многие операции вообще не изменятся: \mintinline{cpp}|push_back(), length()|
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+#include "list.h"
+
+class DoubleList : public List {
+private:
+  DoubleList* prev;
+
+public:
+  DoubleList(int val);
+  ~DoubleList();
+  void push_back(int val);
+  void pop_back(); // Новый метод!
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Пример: странный двусвязный список, double\_list.cpp}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+#include "double_list.h"
+
+DoubleList::DoubleList(int value)
+  : List(value), prev(nullptr)
+{}
+
+~DoubleList::DoubleList() { /* Упражнение :) */ }
+
+void DoubleList::push_back(int value) {
+  DoubleList* current = this;
+  while (current->next != NULL)
+    current = current->next;
+  current->next = new DoubleList(value);
+  current->next->prev = current;
+}
+
+void DoubleList::pop_back() { /* Упражнение :) */ }
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Пример: странный двусвязный список}
+\begin{itemize}
+\usemintedstyle{tango}
+\item В примере есть три ошибки:
+\pause
+\begin{enumerate}
+\item Поля \mintinline{cpp}|class List| должны быть не \mintinline{cpp}|private|, а \mintinline{cpp}|protected|
+\pause
+\item У метода \mintinline{cpp}|push_back()| не хватает \mintinline{cpp}|virtual| и \mintinline{cpp}|override|
+\end{enumerate}
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class List {
+protected:
+  int val;
+  List *next;
+
+public:
+  virtual void push_back(int val);
+};
+
+class DoubleList : public List {
+...
+public:
+  void push_back(int val) override;
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Пример: странный двусвязный список}
+\begin{itemize}
+\usemintedstyle{tango}
+\item В примере есть три ошибки:
+\pause
+\begin{enumerate}
+\setcounter{enumi}{2}
+\item В методе \mintinline{cpp}|DoubleList::push_back()| некорректное приведение типов \mintinline{cpp}|List* -> DoubleList*|
+\end{enumerate}
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Ошибка: приведение List* к DoubleList*
+current = current->next;
+
+// ОК: приведение DoubleList* к List*
+сurrent->next = new DoubleList(value);
+
+// Ошибка: сurrent->next имеет тип List*, у него
+// нет поля prev
+сurrent->next->prev = current;
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Приведение типов при наследовании}
+\begin{itemize}
+\usemintedstyle{tango}
+\item При публичном наследовании класс-наследник `умеет' всё, что умеет базовый класс, содержит тот же публичный интерфейс (поля и методы) \pause \(\Longrightarrow\) указатель на класс-наследник неявно приводится к указателю на базовый класс
+\pause
+\item Обратное, вообще говоря, неверно (например, у \mintinline{cpp}|List| нет поля \mintinline{cpp}|prev| и метода \mintinline{cpp}|pop_back|)
+\pause
+\item Если мы точно знаем, что по данному указателю лежит конкретный класс-наследник, можно сделать \textit{явное приведение типов}:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+List* list = ...;
+
+// Знаем, что там на самом деле DoubleList:
+DoubleList* dlist = (DoubleList*)list;
+dlist->pop_back();
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Исправление ошибки}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+void DoubleList::push_back(int value) {
+  DoubleList* current = this;
+  while (current->next != NULL)
+    current = (DoubleList*)current->next;
+  current->next = new DoubleList(value);
+  ((DoubleList*)current->next)->prev = current;
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Наследование: плюсы}
+\begin{itemize}
+\item Получается гибкий, расширяемый код
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Функцию написали задолго до
+// появления DoubleList
+void fill(List *l, int val, size_t num) {
+  for(size_t i = 0; i < num; i++)
+  l->push_back(val);
+}
+
+// Код работает без изменений в
+// функции fill
+List l(5);
+DoubleList dl(6);
+
+fill(&l, 10, 42);
+fill(&dl, 100, 24);
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Пример: логирование}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Задача: хотим реализовать расширяемую систему логирования
+\pause
+\item Должна позволять логировать сообщения одновременно в разные места (т.н. \textit{sinks} -- в \mintinline{cpp}|stdout|, в файл, и т.п.)
+\pause
+\item При добавлении новых sink'ов не хочется переписывать весь код для их поддержки
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Пример: логирование}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Хотим, чтобы код выглядел как-то так:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+Logger logger;
+
+StdoutSink stdoutSink(WARNING);
+FileSink fileSink1("log.txt", WARNING);
+FileSink fileSink2("debug_log.txt", DEBUG);
+logger.addSink(stdoutSink);
+logger.addSink(fileSink1);
+logger.addSink(fileSink2);
+
+logger.log(INFO, "Initialized");
+logger.log(DEBUG, "Start time: ...");
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Хотим сделать так, чтобы при добавлении новых sink'ов класс \mintinline{cpp}|Logger| не пришлось переделывать
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Пример: логирование}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Базовый класс:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Sink {
+protected:
+  Level level_;
+public:
+  Sink(Level level): level_(level) {}
+  virtual ~Sink() {}
+  virtual void log(Level level, const char* message) {}
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Пример: логирование}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Реализация логирования в \mintinline{cpp}|stdout|:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class StdoutSink : public Sink {
+public:
+  StdoutSink(Level level): Sink(level_) {}
+
+  void log(Level level, const char* message) override {
+    if (level >= level_)
+      printf(message);
+  }
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Пример: логирование}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Реализация логирования в файл:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class FileSink : public Sink {
+protected:
+  FILE* file_;
+public:
+  FileSink(const char* filename, Level level)
+    : Sink(level_)
+    , file_(fopen(filename, "wt"))
+  {}
+
+  void log(Level level, const char* message) override {
+    if (level >= level_)
+      fprintf(file_, message);
+  }
+
+  ~FileSink() override {
+    fclose(file_);
+  }
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Пример: логирование}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Реализация основного класса \mintinline{cpp}|Logger|:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Logger {
+private:
+  Sink sinks_[100];
+  size_t size_;
+public:
+  Logger(): size_(0) {}
+
+  void addSink(Sink& sink) {
+    sinks_[size_++] = sink;
+  }
+
+  void log(Level level, const char* message) {
+    for (size_t i = 0; i < size_; ++i)
+      sinks_[i].log(level, message);
+  }
+};
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Будет ли работать? \pause Нет, так как \mintinline{cpp}|Logger| хранит \textit{копии} переданных sink'ов, к тому же в виде объектов класса \mintinline{cpp}|Sink|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Пример: логирование}
+\begin{itemize}
+\usemintedstyle{tango}
+\item При публичном наследновании объект класса-наследника неявно приводится к типу базового класса
+\pause
+\item \(\Longrightarrow\) Такой код скопилируется, хотя смысла в нём немного:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+FileSink fileSink(...);
+Sink sinkCopy = fileSink;
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Скопируется только часть объекта \mintinline{cpp}|fileSink|, отвечающая классу \mintinline{cpp}|Sink|
+\item Вызов методов у \mintinline{cpp}|sinkCopy| вызовет методы класса \mintinline{cpp}|Sink|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Пример: логирование}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Исправление:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Logger {
+private:
+  Sink* sinks_[100];
+  size_t size_;
+public:
+  Logger(): size_(0) {}
+
+  void addSink(Sink* sink) {
+    sinks_[size_++] = sink;
+  }
+
+  ~Logger() {
+    for (size_t i = 0; i < size_; ++i) {
+      delete sinks_[i];
+    }
+  }
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Pure virtual}
+\begin{itemize}
+\usemintedstyle{tango}
+\item У реализации нового класса sink можно забыть реализовать метод \mintinline{cpp}|log()|, и тогда вызовется метод базового класса
+\pause
+\item Решение -- \textit{чисто виртуальный метод (pure virtual method)}:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Sink {
+public:
+  ...
+  virtual void log(Level level, const char* message) = 0;
+};
+\end{tcblisting}
+\pause
+\item Класс с чисто виртуальными методами называется \textit{абстрактным}
+\pause
+\item Создать экземпляр абстрактного класса \textbf{нельзя} (будет ошибка компиляции), но можно от него отнаследоваться
+\pause
+\item Если класс-наследник не реализует часть чисто виртуальных методов базового класса, то он останется абстрактным
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Static vs dynamic dispatch}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Как работают виртуальные функции внутри, на уровне бинарного кода?
+\pause
+\item Если у объекта вызван невиртуальный метод, он вызывается как обычная функция \textit{(почти, см. thiscall)} -- это т.н. \textit{static dispatch}
+\pause
+\item Если функция виртуальная, нужно понять, какого типа на самом деле объект, и вызвать соответствующий метод -- это т.н. \textit{dynamic dispatch}
+\pause
+\item В C++ (и многих других ООП-языках) dynamic dispatch работает с помощью \textit{таблицы виртуальных функций}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Таблица виртуальных функций}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Для каждого класса с виртуальными методами компилятор создаёт особый массив указателей на функции
+\pause
+\item Для каждого виртуального метода где-то в этом массиве лежит указатель на него
+\pause
+\item В каждый экземпляр класса компилятор добавляет указатель на этот массив в некое фиксированное место (часто -- в начало класса)
+\pause
+\item При вызове виртуального метода сначала достаётся нужный элемент из этого массива, и потом вызывается как функция
+\pause
+\item \(\Longrightarrow\) Вызов виртуального метода немного дороже, чем вызов обычного метода
+\end{itemize}
+\end{frame}
+
+\end{document}
