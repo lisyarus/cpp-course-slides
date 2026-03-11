@@ -6,6 +6,7 @@ all: pdf/lecture09.pdf
 all: pdf/lecture10.pdf
 all: pdf/lecture11.pdf
 all: pdf/lecture12.pdf
+all: pdf/lecture13.pdf
 
 pdf/%.pdf: source/%/source.tex source/%/images/*.png
 	mkdir -p build/$(@F)

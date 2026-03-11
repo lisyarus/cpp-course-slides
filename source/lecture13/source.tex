@@ -1,0 +1,969 @@
+% (c) Nikita Lisitsa, lisyarus@gmail.com, 2026
+
+\documentclass[10pt]{beamer}
+
+\usepackage[T2A]{fontenc}
+\usepackage[russian]{babel}
+\usepackage{minted}
+
+\usepackage[most]{tcolorbox}
+\tcbuselibrary{minted}
+
+\usepackage{graphicx}
+\graphicspath{ {./images/} }
+
+\usepackage{adjustbox}
+
+\usepackage{color}
+\usepackage{soul}
+\usepackage{multicol}
+\usepackage{hyperref}
+
+\usetheme{metropolis}
+
+\definecolor{red}{rgb}{1,0,0}
+\definecolor{codebg}{RGB}{29,35,49}
+\setminted{fontsize=\footnotesize}
+
+\makeatletter
+\newcommand{\slideimage}[1]{
+  \begin{figure}
+    \begin{adjustbox}{width=\textwidth, totalheight=\textheight-2\baselineskip-2\baselineskip,keepaspectratio}
+      \includegraphics{#1}
+    \end{adjustbox}
+  \end{figure}
+}
+\makeatother
+
+\title{Язык программирования C++}
+\subtitle{Лекция 13: наследование, полиморфизм, стандартная библиотека, шаблоны}
+\date{2026}
+\author{Никита Лисица}
+
+\setbeamertemplate{footline}[frame number]
+
+\begin{document}
+
+\frame{\titlepage}
+
+% План:
+% + Множественное наследование
+% + Виртуальное наследование
+% + Интерфейсы
+% + Вложенные типы и классы
+% + Неймспейсы
+% + Using (type alias)
+% + Стандартная библиотека
+% * Пример: сортировка в стиле С
+% * Пример: сортировка в ООП-стиле
+% * Пример: связный список в стиле С
+% * Пример: связный список в ООП-стиле
+% * Пример: Array, scoped_ptr, ...
+% * Шаблоны
+
+\begin{frame}[fragile]
+\frametitle{Множественное наследование}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Readable {
+public:
+  virtual void read(char* dst, size_t bytes) = 0;
+};
+
+class Writable {
+public:
+  virtual void write(const char* src, size_t bytes) = 0;
+};
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Хотим сделать класс, который является и \mintinline{cpp}|Readable|, и \mintinline{cpp}|Writable|, но как?
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Множественное наследование}
+\begin{itemize}
+\item С помощью \textit{множественного наследования (multiple inheritance)}:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class File : public Readable, public Writable {
+public:
+  void read(char* dst, size_t bytes) override { ... }
+  void write(const char* src, size_t bytes) override { ... }
+};
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Такой класс содержит все поля и методы всех классов, от которых наследуется
+\pause
+\item Указатель (или ссылка) такой класс приводится к типу указателя (или ссылки) на любой из базовых классов
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Множественное наследование}
+\begin{itemize}
+\item Что, если у базовых классов есть одинаковые поля/методы?
+\usemintedstyle{lightbulb}
+\begin{multicols}{2}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Readable {
+protected:
+  size_t totalBytes;
+public:
+  ...
+};
+\end{tcblisting}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Writable {
+protected:
+  size_t totalBytes;
+public:
+  ...
+};
+\end{tcblisting}
+\end{multicols}
+\pause
+\usemintedstyle{tango}
+\item Можно использовать явное разрешение имён:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class File : public Readable, public Writable {
+public:
+  size_t bytesRead() const { return Readable::totalBytes; }
+  size_t bytesWritten() const { return Writable::totalBytes; }
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Виртуальное наследование}
+\begin{itemize}
+\item Что будет, если оба базовых класса сами наследуются от одного и того же класса (т.н. \textit{diamond problem})?
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class IOBase {
+protected:
+  size_t totalBytes;
+};
+
+class Readable : public IOBase {
+  ...
+};
+
+class Writable : public IOBase {
+  ...
+};
+
+class File : public Readable, public Writable {
+  ...
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Виртуальное наследование}
+\begin{itemize}
+\usemintedstyle{tango}
+\item У обоих базовых классов будет своя копия подобъекта \mintinline{cpp}|IOBase|
+\pause
+\item \(\Longrightarrow\) В классе \mintinline{cpp}|File| содержатся два подобъекта типа \mintinline{cpp}|IOBase|
+\pause
+\item Иногда это ровно то, что нужно; а иногда хочется, чтобы подобъект общего типа был один
+\pause
+\item Решение: \textit{виртуальное наследование (virtual inheritance)}:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Readable : public virtual IOBase {
+  ...
+};
+
+class Writable : public virtual IOBase {
+  ...
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Виртуальное наследование}
+\begin{itemize}
+\usemintedstyle{tango}
+\item При виртуальном наследовании подобъект типа \mintinline{cpp}|IOBase| будет только один
+\pause
+\item Почему это свойство классов \mintinline{cpp}|Readable| и \mintinline{cpp}|Writable|, а не класса \mintinline{cpp}|File|?
+\pause
+\item \mintinline{cpp}|Readable/Writable| не могут независимо хранить подобъект \mintinline{cpp}|IOBase|, и вместо этого хранят \textit{указатель} на подобъект \mintinline{cpp}|IOBase|
+\pause
+\item Сам подобъект \mintinline{cpp}|IOBase| кладётся где-то по усмотрению компилятора, часто -- в конце класса
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Виртуальное наследование}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Расположение данных в памяти получится аналогичным вот такому коду:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class IOBase { ... };
+
+class Readable {
+  // Аналог public virtual IOBase
+  IOBase* ioBasePtr;
+};
+
+class Writable {
+  // Аналог public virtual IOBase
+  IOBase* ioBasePtr;
+};
+
+class File : public Readable, public Writable {
+  // Компилятор сам положит подобъект IOBase
+  // и правильно запишет указатели ioBasePtr
+  IOBase ioBase;
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Виртуальное наследование}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Конструктор виртуального базового класса должен явно вызывать любой класс, наследующийся от него (напрямую или через другие классы):
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class IOBase {
+public:
+  IOBase(int flags);
+};
+
+class Readable : public virtual IOBase {
+public:
+  Readable() : IOBase(READ_FLAG) {}
+};
+
+class Writable : public virtual IOBase {
+  Writable() : IOBase(WRITE_FLAG) {}
+};
+
+class File : public Readable, public Writable {
+public:
+  File() : IOBase(READ_FLAG | WRITE_FLAG) {}
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Интерфейсы}
+\begin{itemize}
+\usemintedstyle{tango}
+\item ООП-языки часто отдельно выделяют \textit{интерфейсы}: спецификации наборов методов, которые должен поддерживать некоторый класс
+\pause
+\item В C++ роль интерфейсов выполняют классы с \textit{чисто виртуальными методами} и \textit{без полей}:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Hashable {
+public:
+  virtual size_t getHash() = 0;
+
+  // Не забываем про виртуальный деструктор!
+  virtual ~Hashable() {}
+};
+
+class Comparable {
+public:
+  virtual bool equals(Comparable* other) = 0;
+
+  // Не забываем про виртуальный деструктор!
+  virtual ~Comparable() {}
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Интерфейсы}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Обычно лучше использовать множественное наследование только от интерфейсов -- некоторые ООП-языки (Java, C\#) разрешают только такое множественное наследование
+\pause
+\item Виртуальное наследование -- подход C++ к решению diamond problem, в других языках есть другие решения, см. \href{https://en.wikipedia.org/wiki/Multiple\_inheritance\#Mitigation}{\nolinkurl{en.wikipedia.org/wiki/Multiple\_inheritance\#Mitigation}}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Конфликты имён}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Часто возникает ситуация, когда в разных частях программы появились функции/классы с одинаковыми именами:
+\begin{multicols}{2}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+struct Node {
+  int data;
+  Node* next;
+};
+
+
+class List {
+  Node* head;
+  ...
+};
+\end{tcblisting}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+struct Node {
+  int data;
+  Node* left;
+  Node* right;
+};
+
+class Tree {
+  Node* root;
+  ...
+};
+\end{tcblisting}
+\end{multicols}
+\pause
+\item Это приведёт к ошибкам компиляции, если какой-то код использует и \mintinline{cpp}|List|, и \mintinline{cpp}|Tree|
+\pause
+\item (Если неповезёт, может обойтись без ошибок компиляции, но с runtime ошибками!)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Конфликты имён}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Как избежать конфликтов имён? Вариант 1: префиксы в именах
+\begin{multicols}{2}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+struct ListNode {
+  int data;
+  ListNode* next;
+};
+
+\end{tcblisting}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+struct TreeNode {
+  int data;
+  TreeNode* left;
+  TreeNode* right;
+};
+\end{tcblisting}
+\end{multicols}
+\pause
+\usemintedstyle{tango}
+\item Длиннее имена функций/структур/классов, сложнее читать
+\item Переводит проблему на уровень выше: кто-то мог создать два разных класса \mintinline{cpp}|Tree| :)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Конфликты имён}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Как избежать конфликтов имён? Вариант 2: вложенные типы
+\begin{multicols}{2}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class List {
+  struct Node {
+    int data;
+    Node* next;
+  };
+
+  Node* head;
+};
+
+\end{tcblisting}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Tree {
+  struct Node {
+    int data;
+    Node* left;
+    Node* right;
+  };
+
+  Node* root;
+};
+\end{tcblisting}
+\end{multicols}
+\pause
+\usemintedstyle{tango}
+\item Отлично подходит в этом конкретном примере
+\item Инкапсуляция: делает и сам тип \mintinline{cpp}|Node| недоступным снаружи
+\item Не подходит, если нет класса, который логически должен содержать наши функции/классы
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Пространства имён}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Как избежать конфликтов имён? Вариант 3: \textit{пространства имён (namespaces)}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+namespace xml {
+  class Node { ... };
+  class Parser { ... };
+}
+
+namespace json {
+  class Node { ... };
+  class Parser { ... };
+}
+
+json::Parser parser("myFile.json");
+...
+\end{tcblisting}
+\pause
+\item При компиляции пространства имён тоже используются для name mangling'а
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Пространства имён}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Если пространство имён используется часто, \textit{можно} подключить его с помощью конструкции \mintinline{cpp}|using namespace|:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+using namespace xml;
+Parser parser("myFile.xml");
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Лучше так не делать без крайней необходимости: это усложняет чтение кода и может приводить к конфликтам имён
+\pause
+\item В заголовочных файлах точно не стоит делать \mintinline{cpp}|using namespace|: оно неявно добавится во все файлы, использующие этот заголовочный файл
+\pause
+\item Совет: \textbf{не делайте} \mintinline{cpp}|using namespace std;|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Пространства имён}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Пространства имён могут быть вложенными:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+namespace boost {
+  namespace multiprecision {
+    class gmp_int;
+  }
+}
+
+boost::multiprecision::gmp_int x(42);
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Для пространств имён можно создавать новые имена для удобства (это гораздо лучше, чем \mintinline{cpp}|using namespace|):
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+namespace bmp = boost::multiprecision;
+
+bmp::gmp_int x(42);
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Глобальное пространство имён}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Технически, всё, что не лежит в каком-то пространстве имён, лежит в неявном \textit{глобальном пространстве имён}
+\pause
+\item Обратиться к объектам из глобального пространства имён можно через оператор разрешения области видимости \mintinline{cpp}|::|
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+namespace complex {
+  class Complex { ... };
+
+  Complex exp(Complex c) {
+    float x = c.real;
+    float y = c.imag;
+
+    // ::exp(x) явно обращается к глобальному пространству имён
+    return ::exp(x) * ...;
+  }
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Анонимное пространство имён}
+\begin{itemize}
+\usemintedstyle{tango}
+\item У пространства имён можно опустить имя: тогда оно будет \textit{анонимным}
+\pause
+\item Объекты из него автоматически попадают в родительское пространство имён, но используют \textit{internal linkage} -- не видны из других cpp-файлов при линковке
+\pause
+\item То же самое, что и \mintinline{cpp}|static|, но удобнее, когда есть много объектов, и работает для классов:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+static void helper();
+static int global = 0;
+
+namespace {
+  void helper2();
+  int global2 = 0;
+
+  class Internal { ... };
+}
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Совет: все детали реализации внутри cpp-файла прячьте в анонимное пространство имён
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Inline пространство имён}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Пространство имён можно пометить как \mintinline{cpp}|inline|
+\pause
+\item Объекты из него автоматически попадают в родительское пространство имён, но всё равно используют имя пространства имён при name mangling'е
+\pause
+\item Иногда используется для версионирования библиотек (напр. libstdc++ -- стандартная библиотека C++ компилятора GCC)
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+namespace mylib {
+  // Старый скомпилированный код использует v1
+  namespace v1 {
+    ...
+  }
+
+  // Новый код по умолчанию использует v2
+  inline namespace v2 {
+    ...
+  }
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Синонимы типов}
+\begin{itemize}
+\usemintedstyle{tango}
+\item C-style синонимы типов \mintinline{cpp}|typedef int ObjectID;| часто тяжело воспринимаются
+\pause
+\item В C++ есть альтернативный синтаксис: \mintinline{cpp}|using ObjectID = int;|
+\pause
+\item Синонимы типов (как через \mintinline{cpp}|typedef|, так и через \mintinline{cpp}|using|) могут быть внутри классов или пространств имён:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+namespace internal {
+  using Data = int;
+  struct Node {
+    Data data;
+    Node* next;
+  };
+}
+
+class List {
+  using Data = internal::Data;
+  using Node = internal::Node;
+  ...
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Стандартная библиотека C++}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Алгоритмы: \mintinline{cpp}|<algorithm>|
+\item Структуры данных: \mintinline{cpp}|<vector>, <list>, <forward_list>,| \mintinline{cpp}|<deque>, <set>, <map>, <unordered_set>, <unordered_map>|
+\item Строки, поиск и форматирование: \mintinline{cpp}|<string>, <regex>,| \mintinline{cpp}|<format>, <print>|
+\item Математика: \mintinline{cpp}|<cmath>, <complex>, <numeric>|
+\item Генерация случайных чисел: \mintinline{cpp}|<random>|
+\item Ввод/вывод: \mintinline{cpp}|<iostream>, <fstream>, <sstream>|
+\item Работа с памятью, умные указатели: \mintinline{cpp}|<new>, <memory>,| \mintinline{cpp}|<memory_resource>|
+\item Работа с временем: \mintinline{cpp}|<chrono>|
+\item Многопоточное программирование: \mintinline{cpp}|<thread>, <mutex>,| \mintinline{cpp}|<future>, <condition_variable>|
+\item И много другого
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Стандартная библиотека C++}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Поддерживается любым компилятором C++
+\pause
+\item Все идентификаторы находятся в пространстве имён \mintinline{cpp}|std|, напр. \mintinline{cpp}|std::string|, \mintinline{cpp}|std::regex|, \mintinline{cpp}|std::format|
+\pause
+\item Все имена используют \mintinline{cpp}|snake_case|
+\pause
+\item Заголовочные файлы не имеют расширения: \mintinline{cpp}|<algorithm>|, \mintinline{cpp}|<future>|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Стандартная библиотека C++}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Заголовочные файлы стандартной библиотеки C тоже доступны в C++: \mintinline{cpp}|<string.h>|, \mintinline{cpp}|<math.h>| и т.д.
+\pause
+\item В стандартной библиотеке C++ есть файлы, оборачивающие C-файлы в \mintinline{cpp}|namespace std| -- рекомендуется использовать именно их
+\pause
+\item \mintinline{cpp}|<XXX.h>| превращается в \mintinline{cpp}|<cXXX>|: \mintinline{cpp}|<cstring>|, \mintinline{cpp}|<cmath>|, и т.д.
+\pause
+\item Например, функция \mintinline{cpp}|sin(float)| из \mintinline{cpp}|<math.h>| превращается в функцию \mintinline{cpp}|std::sin(float)| из \mintinline{cpp}|<cmath>|
+\pause
+\item Формально, \mintinline{cpp}|<cmath>| не обязан содержать функцию \mintinline{cpp}|sin| (без пространства имён \mintinline{cpp}|std|), но на практике часто содержит (но это не гарантируется!)
+\pause
+\item То же самое касается типов: \mintinline{cpp}|<cstdint>| содержит тип \mintinline{cpp}|std::uint32_t| и не обязан содержать тип \mintinline{cpp}|uint32_t|, но на практике часто содержит, и многие не пишут \mintinline{cpp}|std::| перед такими типами
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Пример: C-style сортировка}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+struct point {
+  int x, y;
+};
+
+void qsort(void* array, size_t count, size_t size,
+  int (*comp)(const void*, const void*));
+
+int cmp_point(const void* v1, const void* v2) {
+  const struct point_s *p1 = (const struct point_s*)v1;
+  const struct point_s *p2 = (const struct point_s*)v2;
+  ...
+}
+
+struct point points[10];
+qsort(points, 10, sizeof(points[0]), cmp_point);
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Можно использовать и для примитивных типов
+\pause
+\item Нет проверки типов со стороны компилятора (\mintinline{cpp}|void*|)
+\pause
+\item Функцию-компаратор \mintinline{cpp}|cmp_point| невозможно заинлайнить
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Пример: ООП-style сортировка}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Comparable {
+public:
+  virtual int compare(const Comparable* other) const = 0;
+};
+
+void sort(Comparable** array, size_t count);
+
+class Point : public Comparable {
+private:
+  int x, y;
+public:
+  int compare(const Comparable* other) const override {
+    const Point* otherPoint = (const Point*)other;
+    ...
+  }
+};
+
+Point** points = new Point*[10];
+...
+nsort(points, 10);
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Пример: ООП-style сортировка}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Проверка типов есть, но частичная -- всё ещё приходится делать приведение типов \mintinline{cpp}|Comparable* -> Point*|
+\pause
+\item Метод-компаратор \mintinline{cpp}|compare| всё ещё невозможно заинлайнить
+\pause
+\item Для примитивных типов приходится писать обёртки
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Integer : public Comparable {
+private:
+  int value;
+public:
+  int compare(const Comparable* other) const override {
+    ...
+  }
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Пример: ООП-style сортировка}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Приходится хранить объекты по указателю
+\pause
+\item Сработает ли такой код?
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+void sort(Comparable* array, size_t count);
+
+Point points[10];
+sort(points, 10);
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Нет: при итерации по массиву функции \mintinline{cpp}|sort| нужно знать настоящий размер объектов (\mintinline{cpp}|sizeof(Point) > sizeof(Comparable)|)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Пример: C-style дерево поиска}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+struct node {
+  void* data;
+  struct node *left, *right;
+};
+
+struct tree {
+  struct node* root;
+};
+
+typedef int (*cmp_fun)(const void*, const void*);
+
+void insert(struct tree* t, void* data, cmp_fun cmp) {
+  struct node* n = malloc(sizeof(struct node));
+  ...
+}
+
+struct list l; l.head = NULL;
+int* data = malloc(sizeof(int));
+*data = 42;
+insert(&l, data, cmp_int);
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Нет проверки типов, функцию-компаратор не заинлайнить
+\pause
+\item Две аллокации памяти!
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Пример: ООП-style дерево поиска}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Tree {
+  struct Node {
+    Comparable* data;
+    Node *left, *right;
+  };
+
+  Node* root;
+
+public:
+
+  void insert(Comparable* data) {
+    Node* node = new Node;
+    ...
+  }
+};
+
+Tree tree;
+tree.insert(new Point(3, 4));
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Все те же проблемы, что и с сортировкой
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Шаблоны}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Все проблемы в примерах исчезли бы, если бы мы умели \textit{параметризовать} фукнции/классы некоторыми \textit{типами}
+\pause
+\item Сейчас мы умеем так:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Приходится писать новый класс для
+// каждого хранимого типа данных
+class Array {
+  int* data;
+  size_t size;
+};
+
+// Приходится писать новый класс для
+// каждого хранимого типа данных
+class scoped_ptr {
+  int* data;
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Шаблоны}
+\begin{itemize}
+\usemintedstyle{tango}
+\item А хочется как-то так:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Array {
+  // T - как-то заданный, но произвольный тип
+  T* data;
+  size_t size;
+};
+
+class scoped_ptr {
+  // T - как-то заданный, но произвольный тип
+  T* data;
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Шаблоны на C препроцессоре}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Решение 1: использовать препроцессор
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+#define Array(T) class Array_##T { \
+private: \
+  T* data; \
+  size_t size; \
+public: \
+  T& operator[](size_t index) { \
+    return array[index]; \
+  } \
+  ... \
+};
+
+Array(int) // генерируем код класса Array_int
+Array(float) // генерируем код класса Array_float
+
+Array_int array(10);
+array[5] = 42;
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Шаблоны на C препроцессоре}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Есть все проблемы от препроцессора: простая текстовая подстановка, неудобство отладки, и т.п.
+\pause
+\item Классы \mintinline{cpp}|Array_int| и \mintinline{cpp}|Array_float| никак не связаны между собой
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Шаблоны в C++}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Решение 2: использовать C++ шаблоны
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T>
+class Array {
+private:
+  T* data;
+  size_t size;
+public:
+  T& operator[](size_t index) {
+    return array[index];
+  }
+  ...
+};
+
+Array<int> array(10);
+array[5] = 42;
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Шаблоны в C++}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Подстановку делает не препроцессор, а компилятор -- он знает про типы, про области видимости, и про другие конструкции языка
+\pause
+\item Работает посредством \textit{мономорфизации}: компилятор внутри фактически генерирует отдельные классы \mintinline{cpp}|Array<int>|, \mintinline{cpp}|Array<float>| и т.д.
+\pause
+\item Код шаблонного класса проще читать, и можно разбить на несколько файлов при желании (но всё равно должен быть в заголовочном файле)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Шаблоны в C++: примеры}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{multicols}{2}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T>
+class scoped_ptr {
+  T* data;
+  ...
+};
+\end{tcblisting}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T>
+class list {
+  struct node {
+    T data;
+    node* next;
+  };
+
+  node* head;
+  ...
+};
+\end{tcblisting}
+\columnbreak
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T>
+class tree {
+  struct node {
+    T data;
+    node *left, *right;
+  };
+
+  node* root;
+  ...
+};
+\end{tcblisting}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T>
+void sort(T* array,
+  size_t count) {
+  ...
+}
+\end{tcblisting}
+\end{multicols}
+\end{itemize}
+\end{frame}
+
+\end{document}
