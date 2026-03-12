@@ -299,6 +299,30 @@ public:
 \end{frame}
 
 \begin{frame}[fragile]
+\frametitle{Приведение указателей}
+\begin{itemize}
+\usemintedstyle{tango}
+\item В общем случае приведение указателя на класс-наследник к указателю на базовый класс -- нетривиальная операция
+\pause
+\item При обычном наследовании часто базовый класс лежит в начале объекта класса-наследника, и приведение указателей не меняет адрес
+\pause
+\item При множественном наследовании может потребоваться сдвинуть указатель
+\pause
+\item При виртуальном наследовании может потребоваться прочитать из памяти адрес, по которому лежит объект базового класса
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Приведение указателей}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \mintinline{cpp}|Derived*| всегда (при публичном наследовании) приводится к \mintinline{cpp}|Base*|
+\pause
+\item \mintinline{cpp}|Derived**| автоматически \textbf{не приводится} к \mintinline{cpp}|Base**|: для этого нужно пройтись по массиву указателей и привести каждый отдельно (это может быть нетривиальная операция)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
 \frametitle{Конфликты имён}
 \begin{itemize}
 \usemintedstyle{tango}
@@ -426,6 +450,54 @@ json::Parser parser("myFile.json");
 \end{tcblisting}
 \pause
 \item При компиляции пространства имён тоже используются для name mangling'а
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Пространства имён}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Пространство имён можно разбить на несколько файлов:
+\usemintedstyle{lightbulb}
+\begin{multicols}{2}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// xml/node.h
+
+namespace xml {
+
+  class Node { ... };
+
+}
+\end{tcblisting}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// xml/node.cpp
+
+namespace xml {
+
+  Node::Node() { ... }
+
+}
+\end{tcblisting}
+\columnbreak
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// xml/parser.h
+
+namespace xml {
+
+  class Parser { ... };
+  
+}
+\end{tcblisting}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// xml/parser.cpp
+
+namespace xml {
+
+  Parser::Parser() { ... }
+
+}
+\end{tcblisting}
+\end{multicols}
 \end{itemize}
 \end{frame}
 
@@ -643,8 +715,8 @@ void qsort(void* array, size_t count, size_t size,
   int (*comp)(const void*, const void*));
 
 int cmp_point(const void* v1, const void* v2) {
-  const struct point_s *p1 = (const struct point_s*)v1;
-  const struct point_s *p2 = (const struct point_s*)v2;
+  const struct point *p1 = (const struct point*)v1;
+  const struct point *p2 = (const struct point*)v2;
   ...
 }
 
@@ -683,9 +755,10 @@ public:
   }
 };
 
-Point** points = new Point*[10];
+Comparable* points[10];
+points[0] = new Point(1, 2);
 ...
-nsort(points, 10);
+sort(points, 10);
 \end{tcblisting}
 \end{itemize}
 \end{frame}
