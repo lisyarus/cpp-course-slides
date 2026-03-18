@@ -1,0 +1,1374 @@
+% (c) Nikita Lisitsa, lisyarus@gmail.com, 2026
+
+\documentclass[10pt]{beamer}
+
+\usepackage[T2A]{fontenc}
+\usepackage[russian]{babel}
+\usepackage{minted}
+
+\usepackage[most]{tcolorbox}
+\tcbuselibrary{minted}
+
+\usepackage{graphicx}
+\graphicspath{ {./images/} }
+
+\usepackage{adjustbox}
+
+\usepackage{color}
+\usepackage{soul}
+\usepackage{multicol}
+\usepackage{hyperref}
+\usepackage{tikz}
+
+\newcommand{\shrug}[1][]{%
+\begin{tikzpicture}[baseline,x=0.8\ht\strutbox,y=0.8\ht\strutbox,line width=0.125ex,#1]
+\def\arm{(-2.5,0.95) to (-2,0.95) (-1.9,1) to (-1.5,0) (-1.35,0) to (-0.8,0)};
+\draw \arm;
+\draw[xscale=-1] \arm;
+\def\headpart{(0.6,0) arc[start angle=-40, end angle=40,x radius=0.6,y radius=0.8]};
+\draw \headpart;
+\draw[xscale=-1] \headpart;
+\def\eye{(-0.075,0.15) .. controls (0.02,0) .. (0.075,-0.15)};
+\draw[shift={(-0.3,0.8)}] \eye;
+\draw[shift={(0,0.85)}] \eye;
+% draw mouth
+\draw (-0.1,0.2) to [out=15,in=-100] (0.4,0.95); 
+\end{tikzpicture}}
+
+\usetheme{metropolis}
+
+\definecolor{red}{rgb}{1,0,0}
+\definecolor{codebg}{RGB}{29,35,49}
+\setminted{fontsize=\footnotesize}
+
+\makeatletter
+\newcommand{\slideimage}[1]{
+  \begin{figure}
+    \begin{adjustbox}{width=\textwidth, totalheight=\textheight-2\baselineskip-2\baselineskip,keepaspectratio}
+      \includegraphics{#1}
+    \end{adjustbox}
+  \end{figure}
+}
+\makeatother
+
+\title{Язык программирования C++}
+\subtitle{Лекция 14: шаблоны, исключения, раскрутка стека, гарантии при работе с исключениями}
+\date{2026}
+\author{Никита Лисица}
+
+\setbeamertemplate{footline}[frame number]
+
+\begin{document}
+
+\frame{\titlepage}
+
+\begin{frame}[fragile]
+\frametitle{Шаблонные классы}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// array.h
+
+template <typename T>
+class Array {
+  T* data;
+  size_t size;
+
+public:
+  Array(size_t size)
+    : data(new T[size])
+    , size(size)
+  {}
+
+  ~Array() {
+    delete[] data;
+  }
+
+  T& operator[] (size_t index) {
+    return data[index];
+  }
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Шаблонные классы}
+\begin{itemize}
+\item Реализации методов можно вынести наружу:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// array.h
+
+template <typename T>
+class Array {
+  T* data;
+  size_t size;
+
+public:
+  Array(size_t size);
+  ~Array();
+  T& operator[] (size_t index);
+};
+
+...
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Шаблонные классы}
+\begin{itemize}
+\item Реализации методов можно вынести наружу:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// array.h
+
+...
+
+template <typename T>
+Array<T>::Array(size_t size)
+  : data(new T[size])
+  , size(size)
+{}
+
+template <typename T>
+Array<T>::~Array() {
+  delete[] data;
+}
+
+template <typename T>
+T& Array<T>::operator[] (size_t index) {
+  return data[index];
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Шаблонные классы}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+#include <array.h>
+
+int main() {
+  Array<int> array1;
+  Array<double> array2;
+  Array<Array<int>> array3;
+}
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Подстановку делает \textbf{компилятор}, а не \textbf{препроцессор}!
+\pause
+\item Код шаблонного класса должен быть в заголовочном файле. Почему? \pause Мы не знаем заранее, какие именно типы могут подставить в качестве \mintinline{cpp}|T|
+\pause
+\item Методы шаблонного класса всегда \mintinline{cpp}|inline|. Почему? \pause Один и тот же тип \mintinline{cpp}|T| могут подставить в разных cpp-файлах
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Шаблонные классы}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \mintinline{cpp}|T| называется \textit{шаблонным параметром}
+\pause
+\item \mintinline{cpp}|template <typename T>| и \mintinline{cpp}|template <class T>| ничем не отличаются (лучше \mintinline{cpp}|typename| -- шаблонный параметр не обязан быть классом)
+\pause
+\item \mintinline{cpp}|template <struct T>| нельзя :)
+\pause
+\item Класс с конкретными подставленными значениями (например, \mintinline{cpp}|Array<int>|) называется \textit{специализацией (specialization)} шаблона
+\pause
+\item Можно делать синонимы типов на специализации: \mintinline{cpp}|using IntArray2D = Array<Array<int>>;|
+\pause
+\item Процесс генерации кода для конкретной специализации называется \textit{инстанциированием (instantiation)} шаблона
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Несколько шаблонных параметров}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename Key, typename Value>
+class RedBlackTree {
+  struct Node {
+    Key key;
+    Value value;
+  };
+
+  Node* root;
+
+public:
+  ...
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Значения по умолчанию}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T = float>
+struct Vector3 {
+  T x, y, z;
+};
+
+Vector3 v1; // Vector3<float>
+Vector3<int> v2;
+Vector3<double> v3;
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Шаблонные функции}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T>
+void swap(T& a, T& b) {
+  T temp = a;
+  a = b;
+  b = temp;
+}
+
+int main() {
+  int i = 10;
+  int j = 20;
+  swap<int>(i, j);
+}
+\end{tcblisting}
+\pause
+\item Шаблонные функции тоже должны быть в заголовочных файлах!
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Шаблонные функции}
+\begin{itemize}
+\item Типы аргументов могут зависеть от шаблонных параметров:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T>
+void reverse(Array<T>& array)
+  size_t size = array.size();
+  for (size_t i = 0; i < size / 2; ++i) {
+    swap<T>(array[i], array[size - i - 1]);
+  }
+}
+
+int main() {
+  Array<int> array(10);
+  ...
+  reverse<int>(array);
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Несколько шаблонных параметров}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T, typename H>
+void copy(const Array<T>& src, Array<H>& dst)
+  dst.resize(src.size());
+  for (size_t i = 0; i < src.size(); ++i)
+    dst[i] = src[i];
+}
+
+int main() {
+  Array<int> array(10);
+  ...
+  Array<double> array2;
+  copy<int, double>(array, array2);
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Вывод шаблонных параметров}
+\begin{itemize}
+\item Часто компилятор может сам вывести шаблонные параметры из типов аргументов:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+Array<int> array(10);
+// Array<T> = Array<int>
+// => T = int
+reverse(array);
+
+Array<double> array2;
+// Array<T> = Array<double>
+// => T = int
+reverse(double);
+
+// Array<T> = Array<int>
+// Array<H> = Array<double>
+// => T = int
+// => H = double
+copy(array, array2);
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{C vs ООП vs Шаблоны}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+void sort(void* array, size_t size, size_t count, cmp_fn cmp);
+\end{tcblisting}
+\usemintedstyle{tango}
+\item \alert{\textbf{Работает}} для примитивных типов, \textbf{нет} проверок типов, \textbf{нельзя} заинлайнить сравнение
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+void sort(Comparable** array, size_t size);
+\end{tcblisting}
+\usemintedstyle{tango}
+\item \textbf{Не работает} для примитивных типов, \alert{\textbf{частичная}} проверка типов, \textbf{нельзя} заинлайнить сравнение
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T>
+void sort(T* array, size_t size);
+\end{tcblisting}
+\usemintedstyle{tango}
+\item \alert{\textbf{Работает}} для примитивных типов, \alert{\textbf{есть}} проверки типов, \alert{\textbf{можно}} заинлайнить сравнение
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Шаблоны}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T>
+void sort(T* array, size_t size);
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Для каждого типа \mintinline{cpp}|T| компилятор сгенерирует \textit{отдельную функцию}
+\pause
+\item \(\Longrightarrow\) В неё можно заинлайнить (подставить) код сравнения
+\pause
+\item \(\Longrightarrow\) Её можно оптимизировать отдельно, зная особенности типа \mintinline{cpp}|T|
+\pause
+\item \(\Longrightarrow\) Больше работы компилятору :)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Non-type template parameters}
+\begin{itemize}
+\item Аргументы шаблонов могут быть не только типами, но и значениями (примитивных типов; с C++20 -- простых структур)
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <size_t S>
+class Bitset {
+  uint8_t data[(S + 7) / 8];
+
+public:
+  bool get(size_t index) const {
+    // Что-то с index/8 и index\%8
+  }
+
+  void set(size_t index, bool value) {
+    // Что-то с index/8 и index\%8
+  }
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Non-type template parameters}
+\begin{itemize}
+\item Аргументы шаблонов могут быть не только типами, но и значениями (примитивных типов; с C++20 -- простых структур)
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T, size_t N>
+struct Vector {
+  T coords[N];
+
+  Vector operator* (T x) const {
+    ...
+  }
+
+  Vector operator+ (const Vector<T, N>& v) const {
+    ...
+  }
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Template template parameters}
+\begin{itemize}
+\item Хотим реализовать стек, но позволить пользователю выбрать структуру данных для хранения элементов:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T, typename Container>
+struct Stack {
+  Container data;
+
+public:
+  void push(const T& value);
+  bool empty() const;
+  T pop();
+};
+
+Stack<int, Array<int>> stack1;
+Stack<double, List<double>> stack2;
+\end{tcblisting}
+\pause
+\item В чём проблема? \pause Повторение кода + небезопасно:
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Потеря точности!
+Stack<double, Array<int>> stack;
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Template template parameters}
+\begin{itemize}
+\item Решение -- шаблонные шаблонные параметры:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T, template <typename> class Container>
+struct Stack {
+  Container<T> data;
+
+public:
+  ...
+};
+
+Stack<int, Array> stack1;
+Stack<double, List> stack2;
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Template template parameters}
+\begin{itemize}
+\item Можно сделать значение параметра по умолчанию:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T,
+  template <typename> class Container = Deque
+>
+struct Stack { ... };
+
+Stack<char*> stack; // Stack<char*, Deque>
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Специализация шаблонов (полная)}
+\begin{itemize}
+\item Хотим сделать специфичное поведение для конкретного набора шаблонных параметров:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T>
+class Array { ... };
+
+template <>
+class Array<bool> {
+  // Оптимизация: храним bool'ы в битах,
+  // а не отдельными объектами
+  uint8_t* data;
+  size_t size;
+
+public:
+  Array(size_t size)
+    : data(new uint8_t[(size + 7) / 8])
+    , size(size)
+  {}
+
+  ...
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Специализация шаблонов (полная)}
+\begin{itemize}
+\item Хотим сделать специфичное поведение для конкретного набора шаблонных параметров:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T, size_t N>
+struct Vector { ... };
+
+template <>
+struct Vector<float, 2> {
+  // Оптимизация: используем SIMD intrinsics
+  float coords __attribute__ ((vector_size(8)));
+};
+
+template <>
+struct Vector<float, 4> {
+  // Оптимизация: используем SIMD intrinsics
+  float coords __attribute__ ((vector_size(16)));
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Специализация шаблонов (частичная)}
+\begin{itemize}
+\item Частичная специализация -- для некоторого множетсва параметров:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T>
+class Array<Array<T>> { ... };
+
+template <size_t N>
+struct Vector<float, N> { ... };
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Обработка ошибок}
+\begin{itemize}
+\item Ошибки -- неотъемлемая часть программирования
+\pause
+\item Ошибки по вине программиста (передали не тот параметр, вызвали не тот метод, etc):
+\pause
+\begin{itemize}
+\item Выявляют на стадии разработки / тестирования
+\pause
+\item В `идеальной' программе их не должно быть (но всегда есть)
+\pause
+\item В C и C++ их часто не обрабатывают
+\end{itemize}
+\pause
+\item Ошибки по вине окружения / пользователя / входных данных (файл не существует, неверный формат ввода, etc)
+\pause
+\begin{itemize}
+\item Могут произойти в любой программе
+\pause
+\item Их \textbf{обязательно} нужно обрабатывать!
+\end{itemize}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Действия по обработке ошибки}
+\begin{itemize}
+\item Проверить наличие ошибки
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+if (!file) { ... }
+\end{tcblisting}
+\pause
+\item Освободить ресурсы
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+delete[] buffer;
+\end{tcblisting}
+\pause
+\item Сообщить пользователю / вызывающей функции
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+std::cerr << "Failed to open file\n";
+\end{tcblisting}
+\pause
+\item Предпринять действия по восстановлению от ошибки
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+file = fopen("backup.data", "rb");
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{C-style обработка ошибок}
+\begin{itemize}
+\item Через возвращаемое значение:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+FILE* fopen(const char* filename, const char* mode) {
+  if (/* файл не найден */) {
+    return NULL;
+  }
+  if (/* отказано в доступе */) {
+    return NULL;
+  }
+  ...
+}
+
+int Array::get(int index) {
+  if (index < 0) return -1;
+}
+\end{tcblisting}
+\pause
+\item Непонятно, что именно произошло и что с этим делать (`что-то пошло не так')
+\pause
+\item Не всегда есть разумное `ошибочное' значение возвращаемого типа
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{C-style обработка ошибок}
+\begin{itemize}
+\item Через возвращаемое значение + глобальный флаг:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+FILE* fopen(const char* filename, const char* mode) {
+  if (/* файл не найден */) {
+    errno = ENOENT;
+    return NULL;
+  }
+  if (/* отказано в доступе */) {
+    errno = EPERM;
+    return NULL;
+  }
+  ...
+}
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Нужно следить, чтобы другая функция не перезаписала \mintinline{cpp}|errno|
+\pause
+\item Нельзя передать более подробную информацию об ошибке
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{C-style обработка ошибок}
+\begin{itemize}
+\item Через возвращаемое значение + дополнительный аргумент:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+FILE* fopen(const char* filename, const char* mode, int* error)
+{
+  if (/* файл не найден */) {
+    *error = ENOENT;
+    return NULL;
+  }
+  if (/* отказано в доступе */) {
+    *error = EPERM;
+    return NULL;
+  }
+  ...
+}
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Перемешивается основная логика функции и обработка ошибок
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Result / Either / std::expected}
+\begin{itemize}
+\item Современный подход -- использовать тип-сумму:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+std::expected<FILE*, int> fopen(
+  const char* filename, const char* mode)
+{
+  if (/* файл не найден */) {
+    return std::unexpected(ENOENT);
+  }
+  if (/* отказано в доступе */) {
+    return std::unexpected(EPERM);
+  }
+  FILE* file = ...;
+  ...
+  return file;
+}
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Самый аккуратный подход
+\pause
+\item Всё ещё перемешивается основная логика функции и обработка ошибок
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Исключения}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class DivideByZeroException {
+public:
+  const char* what() {
+    return "division by zero";
+  }
+};
+
+double divide(int a, int b) {
+  if (b == 0) {
+    throw DivideByZeroException();
+  }
+  return double(a) / b;
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Исключения}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+try {
+  c = divide(a, b);
+}
+catch (DivideByZeroException& e) {
+  // Решаем, что с этим делать
+}
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item \mintinline{cpp}|throw| \textit{бросает} исключение
+\pause
+\item \mintinline{cpp}|catch| \textit{ловит} исключение
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Исключения}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Брошенное исключение идёт вверх по стеку вызовов, пока не наткнётся на подходящий \mintinline{cpp}|try/catch| блок \textit{(раскрутка стека -- stack unwinding)}:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int f(int x) {
+  return divide(1000, x);
+}
+
+int g(int x) {
+  return f(x - 42);
+}
+
+int main() {
+  try {
+    g(42);
+  }
+  catch (const DivideByZeroException& e) {
+    ...
+  }
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Исключения}
+\begin{itemize}
+\usemintedstyle{tango}
+\item После бросания исключения нормальный поток исполнения останавливается -- \mintinline{cpp}|printf| не будет вызван:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+void f() {
+  throw Exception(...);
+  printf("I am Groot");
+}
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Если подходящего \mintinline{cpp}|try/catch| блока не нашлось, программа аварийно завершается:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int main() {
+  // Нет try/catch
+  throw Exception(...);
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Несколько типов исключений}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Если вызываемый код может бросать несколько типов исключений, можно обработать их все:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int main() {
+  try {
+    runServer();
+  }
+  catch (const FilesystemError& e) {
+    ...
+  }
+  catch (const NetworkError& e) {
+    ...
+  }
+  catch (const InternalError& e) {
+    ...
+  }
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Иерархия исключений}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \mintinline{cpp}|catch (Type)| поймает не только тип \mintinline{cpp}|Type|, но и любого его наследника:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Exception {
+public:
+  virtual const char* what() { return "Error"; }
+};
+
+class DivideByZeroException : public Exception { ... };
+
+int main() {
+  try {
+    divide(10, 0);
+  }
+  catch (const Exception& e) {
+    std::cerr << e.what() << std::endl;
+  }
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Иерархия исключений}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Часто делают иерархии классов исключений для более точной обработки ошибок:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Exception { ... };
+
+class FilesystemError   : public Exception { ... };
+class FileNotFoundError : public FilesystemError { ... };
+class PermissionDenied  : public FilesystemError { ... };
+
+class NetworkError      : public Exception { ... };
+class ConnectionLost    : public NetworkError { ... };
+class ConnectionTimeout : public NetworkError { ... };
+
+class InternalError     : public Exception { ... };
+class AssertionFailed   : public InternalError { ... };
+class UnreachableCode   : public InternalError { ... };
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item В стандартной библиотеке все исключения -- наследники \mintinline{cpp}|std::exception|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Иерархия исключений}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Важно: в списке \mintinline{cpp}|catch| блоков выбирается \textbf{первый подходящий}!
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+try {
+  ...
+}
+catch (const Exception& e) {
+  ...
+}
+catch (const ConnectionLost& e) {
+  // Никогда не вызовется!
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Иерархия исключений}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Правильный порядок:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+try {
+  ...
+}
+catch (const ConnectionLost& e) {
+  // Сначала наследник,
+}
+catch (const Exception& e) {
+  // потом базовый класс исключения
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Исключения}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Можно поймать исключение неизвестного типа конструкией \mintinline{cpp}|catch(...)| (но тогда с ним ничего особо не сделать):
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+try {
+  runServer();
+}
+catch (...) {
+  std::cerr << "Unknown error" << std::endl;
+}
+\end{tcblisting}
+\pause
+\item \textbf{NB:} Исключение может быть любым типом, но лучше так не делать :)
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+throw NULL;
+throw 42;
+throw "Oopsie woopsie";
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Исключения}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Можно бросить пойманное исключение дальше \textit{(rethrow)} после его обработки конструкией \mintinline{cpp}|throw;| (даже если оно неизвестного типа):
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+try {
+  runServer();
+}
+catch (const NetworkError& e) {
+  std::cerr << "Network error: " << e.what() << std::endl;
+  throw;
+}
+catch (...) {
+  std::cerr << "Unknown error" << std::endl;
+  throw;
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Исключения и деструкторы}
+\begin{itemize}
+\usemintedstyle{tango}
+\item В процессе раскрутки стека автоматически вызываются деструкторы всех локальных переменных:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+void f() {
+  Array array(100);
+  if (...) {
+    // Вызовется array.~Array()
+    throw Exception(...);
+  }
+}
+
+void g() {
+  File file(...);
+  // Если бросится исключение, вызовется file.~File()
+  f();
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Исключения и деструкторы}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+void f() {
+  int* array = new int[100];
+  if (...) {
+    // Формально, вызовется деструктор array
+    // Это примитивный тип, так что деструктор ничего не делает
+    // => Утечка памяти
+    throw Exception(...);
+  }
+  delete[] array;
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Идиома RAII}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \textbf{Resource Acquisition Is Initialization} -- взятие ресурса должно происходить через инициализацию
+\pause
+\item По существу RAII обычно сводится к освобождению ресурса в деструкторе
+\pause
+\item Не сможем забыть очистить ресурсы\pause, теперь и в случае исключений!
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+void f() {
+  Array array(100);
+  if (...) {
+    // Вызовется array.~Array()
+    // Утечки памяти нет
+    throw Exception(...);
+  }
+  delete[] array;
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Исключения в конструкторе}
+\begin{itemize}
+\usemintedstyle{tango}
+\item До конца работы конструктора объекта, объект не считается проинициализированным, и его деструктор не вызовется:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Может бросить исключение
+void checkSupported(const char *effect);
+
+class AudioEffect {
+  float* buffer;
+
+public:
+  AudioEffect(const char* effect) {
+    buffer = new float[1024];
+    // Деструктор ~AudioEffect не вызовется
+    // => Утечка памяти
+    checkSupported(effect);
+  }
+
+  ~AudioEffect() {
+    delete[] buffer;
+  }
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Исключения в конструкторе}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Решение №1:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+  AudioEffect(const char* effect) {
+    buffer = new float[1024];
+    try {
+      checkSupported(effect);
+    }
+    catch (...) {
+      delete[] buffer;
+      throw;
+    }
+  }
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Исключения в конструкторе}
+\begin{itemize}
+\item Решение №2 -- RAII:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class AudioEffect {
+  Array<float> buffer;
+
+public:
+  AudioEffect(const char* effect)
+    : buffer(1024)
+  {
+    // this->buffer уже проинициализирован
+    // Деструктор buffer.~Array() будет вызван
+    checkSupported(effect);
+  }
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Исключения в конструкторе}
+\begin{itemize}
+\item Что, если конструктор одного из полей бросает исключение?
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class AudioManager {
+  FILE* input;
+  AudioEffect effect;
+
+public:
+  // Если конструктор effect бросит исключение,
+  // деструктор AudioManager не вызовется
+  // и файл input не закроется
+  AudioManager()
+    : input(fopen("meow.wav", "rb"))
+    , effect("wrum-wrum")
+  {}
+
+  ~AudioManager() {
+    fclose(input);
+  }
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Исключения в конструкторе}
+\begin{itemize}
+\item Решение №1 -- особый синтаксис \mintinline{cpp}|try| блока:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+AudioManager() try
+  : input(fopen("meow.wav", "rb"))
+  , effect("wrum-wrum")
+{
+  // тело конструктора
+}
+catch (...) {
+  fclose(input);
+  throw;
+}
+\end{tcblisting}
+\pause
+\item \textbf{NB}: работает и для функций
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int main() try {
+  // тело функции
+}
+catch (const Exception& e) {
+  std::cerr << "Error: " << e.what() << std::endl;
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Исключения в конструкторе}
+\begin{itemize}
+\item Решение №2 -- RAII:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class AudioManager {
+  FileStream input;
+  AudioEffect effect;
+
+public:
+  // Если конструктор effect бросит исключение,
+  // вызовется деструктор input
+  AudioManager()
+    : input("meow.wav")
+    , effect("wrum-wrum")
+  {}
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{RAII}
+\begin{itemize}
+\item Совет: если вам приходится вручную обрабатывать исключения в конструкторе, скорее всего, какие-то поля надо выделить в отдельные RAII-классы :)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Исключения в деструкторе}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Database {
+  ...
+  ~Database() {
+    // Может бросить LoggingError
+    logger.log("Database is closed");
+  }
+};
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Деструктор \mintinline{cpp}|~Database| может вызваться в процессе раскрутки стека из-за другого исключения
+\pause
+\item В других языках часто поддерживаются цепочки исключений (\mintinline{cpp}|LoggingError caused by DatabaseError|)
+\pause
+\item В C++ исключения могут быть произвольного типа \(\Longrightarrow\) в общем случае к ним не добавить никакую информацию
+\pause
+\item Поэтому в C++ исключение, брошенное в деструкторе, приводит к аварийному завершению программы
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Исключения в деструкторе}
+\begin{itemize}
+\item Решение №1 -- проигнорировать исключение:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Database {
+  ...
+  ~Database() {
+    try {
+      logger.log("Database is closed");
+    }
+    catch (...) {}
+  }
+};
+\end{tcblisting}
+\pause
+\item Плохо, потому что мы не узнаем о какой-то ошибке (но так всё равно часто делают)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Исключения в деструкторе}
+\begin{itemize}
+\item Решение №2 -- вынести такой код из деструктора и вызывать явно:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Database {
+  ...
+  void close() {
+    logger.log("Database is closed");
+  }
+
+  ~Database() {}
+};
+
+int main() {
+  Database db;
+  ...
+  db.close();
+}
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Плохо, потому что можно забыть вызвать \mintinline{cpp}|close|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Исключения в деструкторе}
+\begin{itemize}
+\item Есть ли хорошее решение? \pause Нет :(
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Гарантии при работе с исключениями}
+\begin{itemize}
+\item Часто функции/методы в коде на C++ предоставляют некоторые гарантии в связи с исключениями (обычно это описано в документации)
+\pause
+\item \textbf{Nothrow guarantee}: функция/метод не бросает исключение
+\pause
+\item \textbf{Strong guarantee}: в случае исключения состояние программы откатывается до состояния перед вызовом функции/метода
+\pause
+\item \textbf{Basic guarantee}: в случае исключения программа останется в некотором допустимом состоянии
+\pause
+\item \textbf{No guarantee}: в случае исключения \shrug
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{No guarantee}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+void process() {
+  int* buffer = new int[1024];
+  FILE* file = fopen(...);
+  if (!file) {
+    // Утечка памяти
+    throw Exception(...);
+  }
+}
+\end{tcblisting}
+\pause
+\item Самый плохой вариант: обычно стараются давать хоть какую-нибудь гарантию, иначе кодом невозможно пользоваться корректно
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Basic guarantee}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+void update(Array<int>& array) {
+  for (size_t i = 0; i < array.size(); ++i) {
+    // Может бросить FileNotFoundError
+    FileStream file(getFilename(i));
+    array[i] = file.readNextInt();
+  }
+}
+\end{tcblisting}
+\pause
+\item Слабая гарантия: состояние программы останется валидным (нет утечек памяти, битых ссылок, и т.п.), но уже затронутые элементы массива останутся изменёнными
+\pause
+\item Обычно легко достигается грамотным применением RAII
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Strong guarantee}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+void update(Array<int>& array) {
+  Array<int> newArray(array.size());
+
+  for (size_t i = 0; i < array.size(); ++i) {
+    // Может бросить FileNotFoundError
+    FileStream file(getFilename(i));
+    newArray[i] = file.readNextInt();
+  }
+  
+  // Идиома copy-and-swap
+  array.swap(newArray);
+}
+\end{tcblisting}
+\pause
+\item Сильная гарантия: состояние программы не изменится
+\pause
+\item Обычно тяжело обеспечить
+\pause
+\item Стандартные контейнеры стараются дать сильную гарантию везде, где это возможно
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Nothrow guarantee}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int strlen(const char* str) {
+  int result = 0;
+  for (; *s != 0; ++str, ++result);
+  return result;
+}
+
+vec2f rotate(vec2f vec, float angle) {
+  float c = cos(angle);
+  float s = sin(angle);
+  return vec2f(
+    c * vec.x - s * vec.y,
+    s * vec.x + c * vec.y,
+  );
+}
+\end{tcblisting}
+\pause
+\item Самая сильная гарантия: обычно означает, что код в принципе никак не может бросить исплючение
+\end{itemize}
+\end{frame}
+
+\end{document}
