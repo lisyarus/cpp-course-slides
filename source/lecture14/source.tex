@@ -1020,7 +1020,6 @@ void f() {
     // Утечки памяти нет
     throw Exception(...);
   }
-  delete[] array;
 }
 \end{tcblisting}
 \end{itemize}
@@ -1353,7 +1352,7 @@ void update(Array<int>& array) {
 \begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
 int strlen(const char* str) {
   int result = 0;
-  for (; *s != 0; ++str, ++result);
+  for (; *str != 0; ++str, ++result);
   return result;
 }
 
