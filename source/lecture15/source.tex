@@ -1,0 +1,892 @@
+% (c) Nikita Lisitsa, lisyarus@gmail.com, 2026
+
+\documentclass[10pt]{beamer}
+
+\usepackage[T2A]{fontenc}
+\usepackage[russian]{babel}
+\usepackage{minted}
+
+\usepackage[most]{tcolorbox}
+\tcbuselibrary{minted}
+
+\usepackage{graphicx}
+\graphicspath{ {./images/} }
+
+\usepackage{adjustbox}
+
+\usepackage{color}
+\usepackage{soul}
+\usepackage{multicol}
+\usepackage{hyperref}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc}
+
+\usetheme{metropolis}
+
+\definecolor{red}{rgb}{1,0,0}
+\definecolor{codebg}{RGB}{29,35,49}
+\setminted{fontsize=\footnotesize}
+
+\makeatletter
+\newcommand{\slideimage}[1]{
+  \begin{figure}
+    \begin{adjustbox}{width=\textwidth, totalheight=\textheight-2\baselineskip-2\baselineskip,keepaspectratio}
+      \includegraphics{#1}
+    \end{adjustbox}
+  \end{figure}
+}
+\makeatother
+
+\title{Язык программирования C++}
+\subtitle{Лекция 15: статические методы, паттерны проектирования, синглтоны, зависимости, автотестирование}
+\date{2026}
+\author{Никита Лисица}
+
+\setbeamertemplate{footline}[frame number]
+
+\begin{document}
+
+\frame{\titlepage}
+
+\begin{frame}[fragile]
+\frametitle{Inline методы класса}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Напоминание: метод, определённый (реализованный) прямо в определении класса, по умолчанию является \mintinline{cpp}|inline|
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Array {
+private:
+  Object* data_;
+  size_t size_;
+
+public:
+  // Автоматически inline
+  size_t size() const {
+    return size_;
+  }
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Inline методы класса}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Метод, определённый снаружи класса, тоже можно сделать \mintinline{cpp}|inline|:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Array {
+private:
+  Object* data_;
+  size_t size_;
+
+public:
+  // Автоматически inline
+  size_t size() const;
+}
+
+inline size_t Array::size() const {
+  return size_;
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Статические переменные}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Напоминание: статическая переменная внутри функции `живёт' (т.е. сохраняет значение, у неё не вызывается деструктор) и между вызовами функции:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int gen_unique_id() {
+  static int next_id = 0;
+  return next_id++;
+}
+\end{tcblisting}
+\pause
+\item В каком-то смысле, такая переменная одна на все вызовы функции (т.е. не создаётся каждый раз)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Статические поля класса}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Поле класса тоже может быть статическим -- тогда оно одно на все объекты (экземпляры) класса:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// object.h
+
+class Object {
+private:
+  // Объявление статического поля
+  static int next_id;
+  int id;
+
+public:
+  Object()
+    : id(next_id++)
+  {}
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Статические поля класса}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Статическое поле является, по сути, глобальной переменной, привязанной к классу
+\pause
+\item \(\Longrightarrow\) Под неё нужно выделить место в каком-нибудь cpp-файле:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// object.cpp
+
+// Определение статического поля
+int Object::next_id = 0;
+\end{tcblisting}
+\pause
+\item Использование:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// main.cpp
+#include <object.h>
+
+int main() {
+  Object o1; // o1.id == 0
+  Object o2; // o2.id == 1
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Статические методы класса}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Метод класса тоже может быть статческим
+\pause
+\item Он тоже `один на все объекты класса`: у него нет \mintinline{cpp}|this|, и он не имеет доступа к нестатическим полям класса:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Object {
+private:
+  static size_t count_;
+  const char* name_;
+
+public:
+  Object(const char* name)
+    : name_(name)
+  {
+    ++count_;
+  }
+
+  static size_t count() {
+    // Нет доступа к this или name_
+    return count_;
+  }
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Статические методы класса}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Статические методы можно вызывать как через объект класса, так и через сам класс:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int main() {
+  Object o1;
+
+  // Эти два вызова эквивалентны,
+  // есл метод статический:
+  o1.count();
+  Object::count();
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Паттерны (шаблоны) проектирования}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Повторяющиеся и переиспользуемые архитектурные конструкции, решающие определённые архитектурные задачи
+\pause
+\item Популярные книги по теме:
+\begin{itemize}
+\item E. Gamma, R. Helm, R. Johnson, J. Vlissides -- \textit{Design Patterns: Elements of Reusable Object-Oriented Software}
+\item R. Martin -- \textit{Clean Code: A Handbook of Agile Software Craftsmanship}
+\item R. Nystrom -- \textit{Game Programming Patterns}
+\end{itemize}
+\pause
+\item Все эти паттерны -- \textit{советы, а не строгие правила}, и не стоит пытаться реализовать всё через них
+\pause
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+R"(
+  Sometimes, the elegant implementation is just a function. 
+  Not a method. Not a class. Not a framework.
+  Just a function.
+
+    - John Carmack
+)"
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Паттерн синглтон (singleton)}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Хотим, чтобы в программе гарантированно был только один объект конкретного класса
+\pause
+\item Попытка создать два объекта должна быть невозможна (ошибка компиляции)
+\pause
+\item Примеры:
+\pause
+\begin{itemize}
+\item Класс глобальных настроек
+\pause
+\item Система логирования
+\pause
+\item Общий ресурс, используемый разными частями программы
+\end{itemize}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Паттерн синглтон (singleton)}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Нельзя позволять пользователю самому создавать объект \(\Rightarrow\) конструктор должен быть приватным, копирование нужно запретить
+\pause
+\item Сам единственный экземпляр нужно где-то хранить \(\Rightarrow\) статическая переменная / статическое поле
+\pause
+\item Нужен доступ к этому экземпляру снаружи \(\Rightarrow\) статические метод, возвращающий ссылку на экземпляр
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Паттерн синглтон (singleton)}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Классический \textit{синглтон Майерса}:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Settings {
+private:
+  // Приватный конструктор
+  Settings();
+
+public:
+  // Запрет копирования
+  Settings(const Settings&) = delete;
+  Settings& operator=(const Settings&) = delete;
+
+  static Settings& instance() {
+    static Settings settings;
+    return settings;
+  }
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Паттерн синглтон (singleton)}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Классический \textit{синглтон Майерса}:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int main() {
+  Settings::instance().loadFromFile(...);
+  ...
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Шаблонный синглтон Майерса}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Синглтонов может быть много, не хочется писать один и тот же код много раз
+\pause
+\item Сделаем шаблонный класс:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T>
+class Singleton {
+private:
+  Singleton();
+
+public:
+  Singleton(const Singleton&) = delete;
+  Singleton& operator=(const Singleton&) = delete;
+
+  static T& instance() {
+    static T singleton;
+    return singleton;
+  }
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Шаблонный синглтон Майерса}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Settings {
+private:
+  ...
+public:
+  void loadFromFile(...) {...}
+};
+
+int main() {
+  Singleton<Settings>::instance().loadFromFile(...);
+}
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Класс \mintinline{cpp}|Settings| опять можно создавать и копировать самому
+\pause
+\item \(\Longrightarrow\) Отнаследуем \mintinline{cpp}|Settings| от \mintinline{cpp}|Singleton<Settings>|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Curiously Recurring Template Pattern (CRTP)}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Settings : public Singleton<Settings> {
+private:
+  friend class Singleton<Settings>; 
+  Settings() = default;
+public:
+  void loadFromFile(...) {...}
+};
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Класс \mintinline{cpp}|Settings| нельзя создать самому, только использовать через \mintinline{cpp}|Singleton<Settings>|
+\pause
+\item Приём наследования класса \mintinline{cpp}|class A : public Base<A>| от шаблонного класса, у которого в качестве шаблонного аргумента передан тот же класс, называется CRTP -- \textit{Curiously Recurring Template Pattern}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Зависимости кода}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Пусть, в программе есть две функции: \mintinline{cpp}|f()| и \mintinline{cpp}|g()|
+\pause
+\item Если \mintinline{cpp}|f()| внутри вызывает \mintinline{cpp}|g()|, говорят, что \mintinline{cpp}|f()| \textit{зависит от} \mintinline{cpp}|g()|
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+void f() {
+  ...
+  g();
+  ...
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Зависимости кода}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Аналогично, если в программе есть два класса: \mintinline{cpp}|A| и \mintinline{cpp}|B|
+\pause
+\item Если класс \mintinline{cpp}|A| использует/содержит класс \mintinline{cpp}|B|, говорят, что \mintinline{cpp}|A| \textit{зависит от} \mintinline{cpp}|B|
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class A {
+private:
+  B* b;
+public:
+  ...
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Зависимости кода}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Почему полезно думать про зависимости кода?
+\pause
+\item Если мы хотим в новую библиотеку/программу/подсистему добавить некую функцию/класс, то нужно добавить и все его зависимости
+\pause
+\item \(\Longrightarrow\) Хочется, чтобы зависимостей было меньше
+\pause
+\item При этом, в зависимостях часто лежит переиспользуемый, обобщённый код
+\pause
+\item \(\Longrightarrow\) Хочется, чтобы зависимостей было больше :)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Циклические зависимости}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Если две части программы (функции/классы/файлы/etc) зависят друг от друга, говорят о \textit{циклической зависимости}
+\pause
+\item Это почти всегда плохо: эти части нельзя использовать по отдельности (независимо), возникают проблемы с порядком определения, и т.п.
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Приходится делать forward declaration,
+// иначе поле A::b имеет неизвестный тип
+class B;
+
+class A {
+private:
+  B* b;
+};
+
+class B {
+private:
+  A* a;
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Циклические зависимости}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Часто циклическую зависимость можно устранить
+\pause
+\item Объединить созависимые компоненты в одну
+
+\begin{center}
+\begin{tikzpicture}[node distance=2cm, >=Stealth]
+  \node (A) {$A$};
+  \node (B) [right=of A] {$B$};
+  \node (C) [right=of B] {$A+B$};
+  \draw[->] (A) to[bend left=20] (B);
+  \draw[->] (B) to[bend left=20] (A);
+  \draw[->, double, shorten >=0.5cm, shorten <=0.5cm] (B) to (C);
+\end{tikzpicture}
+\end{center}
+
+\pause
+\item Выделить общую часть, от которой будут зависеть эти компоненты
+
+\begin{center}
+\begin{tikzpicture}[node distance=2cm, >=Stealth]
+  \node (A) {$A$};
+  \node (B) [right=of A] {$B$};
+  \node (C) [right=of B] {$$};
+  \node (D) [below=0.5cm of C] {$A$};
+  \node (E) [right=of D] {$B$};
+  \node (F) [above=1cm of $(D)!0.5!(E)$] {$C$};
+  \draw[->] (A) to[bend left=20] (B);
+  \draw[->] (B) to[bend left=20] (A);
+  \draw[->, double, shorten >=0.5cm, shorten <=0.5cm] (B) to (C);
+  \draw[->] (F) to (D);
+  \draw[->] (F) to (E);
+\end{tikzpicture}
+\end{center}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Пример архитектуры программы: Гомоку}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Задача: спроектировать и реализовать игру \textit{гомоку} (как крестики-нолики, 5 в ряд, на доске 15\(\times\)15)
+\pause
+\item Спроектировать = продумать файлы/функции/классы/модули и их взаимодействие
+\pause
+\item Избежать излишних зависимостей (особенно циклических) между компонентами программы
+\pause
+\item Реализовать автоматическое тестирование (т.н. \textit{автотесты})
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Архитектура программы: паттерн Model-View}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Компонента \textit{Model}
+\begin{itemize}
+\item Хранение внутреннего представления данных программы
+\item Контроль правил игры и реализация ходов игроков
+\item Обеспечение инвариантов внутреннего состояния
+\end{itemize}
+\pause
+\item Компонента \textit{View}
+\begin{itemize}
+\item Взаимодействие с пользователем
+\item Ввод ходов пользователя
+\item Вывод состояния на экран
+\end{itemize}
+\pause
+\item Кто от кого должен зависеть? \pause Подумаем о повторном использовании кода
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Архитектура программы: паттерн Model-View}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Переиспользование \textit{Model} -- напишем разные \textit{View}, использующие один \textit{Model}:
+\begin{itemize}
+\item Текстовый/графический интерфейс под разные платформы
+\item Веб-интерфейс
+\item Мобильное приложение
+\end{itemize}
+\pause
+\item Переиспользование \textit{View} -- напишем универсальный \textit{View}, работающий с разными моделями игр \textit{Model}:
+\begin{itemize}
+\item Гомоку
+\item Шашки
+\item Шахматы
+\item Го
+\end{itemize}
+\pause
+\item Скорее всего, разные игры требуют и разного ввода/вывода, так что вариант с переиспользованием \textit{View} не реалистичен
+\pause
+\item \(\Longrightarrow\) Сделаем переиспользуемый \textit{Model}, и от него будет зависеть \textit{View}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Другие Model-View паттерны}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Model-View-Controller (MVC)
+\item Model-View-Presenter (MVP)
+\item Model-View-ViewModel (MVVM)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Гомоку: Model}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Что входит в состояние игры?
+\pause
+\begin{itemize}
+\item Чей сейчас ход / чем закончилась игра
+\pause
+\item Состояние всех клеток
+\end{itemize}
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+enum class GameState {
+  XPlayerTurn, // ход крестиков
+  OPlayerTurn, // ход ноликов
+  XPlayerWin,  // крестики выиграли
+  OPlayerWin,  // нолики выиграли
+  Draw,        // ничья
+};
+
+// 'O' или 'X'
+using Player = char;
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Гомоку: Model}
+\begin{itemize}
+\usemintedstyle{tango}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+Player currentPlayer(GameState state) {
+  switch (state) {
+    case GameState::XPlayerTurn: return 'X';
+    case GameState::OPlayerTurn: return 'O';
+    default: return 0;
+  }
+}
+
+GameState switchPlayer(GameState state) {
+  switch (state) {
+    case GameState::XPlayerTurn: return GameState::OPlayerTurn;
+    case GameState::OPlayerTurn: return GameState::XPlayerTurn;
+    default: state;
+  }
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Гомоку: Model}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Model {
+private:
+  char board_[15][15];
+  GameState state_ = GameState::XPlayerTurn;
+
+  // После хода по координатам (x, y) проверить,
+  // не окончена ли игра
+  void checkWinner(int x, int y);
+
+public:
+  // Проинициализировать пустое поле
+  Model();
+
+  // Сделать ход и обновить состояние,
+  // либо сообщить, что ход неверный
+  bool move(int x, int y);
+  char get(int x, int y) const;
+
+  // Проверить, закончена ли игра
+  bool finished() const;
+  // Сообщить, есть ли победитель
+  std::optional<Player> winner() const;
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Гомоку: Model}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+bool Model::move(int x, int y) {
+  // Игра уже окончена
+  if (finished())
+    return false;
+
+  // Клетка уже заполнена
+  if (board_[x][y] != ' ')
+    return false;
+
+  board_[x][y] = currentPlayer(state_);
+
+  checkWinner(x, y);
+
+  if (!finished())
+    state_ = switchPlayer(state_);
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Гомоку: View}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class View {
+private:
+  Model& model_;
+
+public:
+  View(Model& model);
+
+  void processInput(std::istream& in, std::ostream& out);
+  void printBoard(std::ostream& out);
+  void showWinner(std::ostream& out);
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Гомоку: View}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+void View::processInput(std::istream& in, std::ostream& out) {
+  while (true) {
+    int x, y;
+    in >> x >> y;
+    if (model_.move(x, y))
+      break;
+    out << "Invalid move" << std::endl;
+  }
+}
+
+void View::printBoard(std::ostream& out) {
+  for (int y = 0; y < 15; ++y) {
+    for (int x = 0; x < 15; ++x) {
+      out << model_.get(x, y);
+    }
+    out << '\n';
+  }
+  out << std::flush;
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Гомоку: main}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int main() {
+  Model model;
+  View view(model);
+  while (!model.finished()) {
+    view.printBoard();
+    view.processInput(std::cout);
+  }
+  view.showWinner(std::cout);
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Тестирование}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Любой программный продукт тестируется специально обученными людьми
+\pause
+\item Часто, процесс тестирования можно (и нужно!) автоматизировать:
+\pause
+\begin{itemize}
+\item Проверить, что функция на известных входах даёт известные выходы
+\pause
+\item Проверить, что сохраняются инварианты класса
+\pause
+\item Проверить, что типовые сценарии приводят к ожидаемому результату
+\pause
+\item Проверить, что правильно обрабатываются некорректные входные данные
+\pause
+\item Проверить, что после очередных изменений в коде ничего не сломалось
+\end{itemize}
+\pause
+\item \(\Longrightarrow\) \textit{Автоматические тесты (автотесты)}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Автотестирование}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Тест -- это отдельная программа, выполняющая тестирование
+\pause
+\item Часто все сценарии тестирования собраны в одну тестирующую программу
+\pause
+\item Каждый сценарий -- отдельная функция, проверяющая конкретное поведение
+\pause
+\item Есть множество библиотек для автотестирования, упрощающих этот процесс: GoogleTest, Boost.Test, Catch2, doctest, QuickCheck
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Автотестирование}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+bool testSameMove() {
+  Model model;
+  // Делаем один и тот же ход два раза
+  model.move(0, 0);
+  // Второй раз move должна вернуть false
+  if (model.move(0, 0)) {
+    // Тест не прошёл
+    return false;
+  }
+  // Тест прошёл
+  return true;
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Автотестирование}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+bool testHorizontalWin() {
+  Model model;
+  // Делаем простые ходы
+  for (int i = 0; i < 4; ++i) {
+    // Ход крестиков
+    model.move(i, 0);
+    // Ход ноликов
+    model.move(i, 1);
+  }
+  // Победный ход крестиков
+  model.move(4, 0);
+
+  // Условие прохождения теста
+  return model.finished() && model.winner() == 'X';
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Автотестирование}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+using TestFunction = bool (*)();
+
+struct TestData {
+  TestFunction function;
+  const char* name;
+};
+
+class TestRunner {
+private:
+  std::vector<TestData> tests_;
+
+public:
+  void add(TestFunction function, const char* name);
+  void run();
+};
+
+int main() {
+  TestRunner runner;
+  runner.add(testSameMove, "testSameMove");
+  runner.add(testHorizontalWin, "testHorizontalWin");
+  runner.run();
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Автотестирование}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+void TestRunner::run() {
+  int success = 0;
+  
+  for (const TestData& test : tests_) {
+    if (test.function()) {
+      std::cout << "Test " << test.name << ": success\n";
+      ++success;
+    } else {
+      std::cout << "Test " << test.name << ": failure\n";
+    }
+  }
+
+  std::cout << "Success: " << success << "/"
+    << tests_.size() << "\n";
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\end{document}
