@@ -83,10 +83,12 @@ private:
   size_t size_;
 
 public:
-  // Автоматически inline
+  // Не будет автоматически
+  // помечен как inline
   size_t size() const;
 }
 
+// Но можно написать явно!
 inline size_t Array::size() const {
   return size_;
 }
@@ -343,6 +345,22 @@ public:
 \begin{frame}[fragile]
 \frametitle{Шаблонный синглтон Майерса}
 \begin{itemize}
+\usemintedstyle{tango}
+\item В шаблонном классе в этом подходе смысла уже мало, можно заменить на шаблонную функцию:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T>
+T& singleton() {
+  static T object;
+  return object;
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Шаблонный синглтон Майерса}
+\begin{itemize}
 \usemintedstyle{lightbulb}
 \begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
 class Settings {
@@ -353,7 +371,7 @@ public:
 };
 
 int main() {
-  Singleton<Settings>::instance().loadFromFile(...);
+  singleton<Settings>().loadFromFile(...);
 }
 \end{tcblisting}
 \pause
@@ -742,8 +760,8 @@ int main() {
   Model model;
   View view(model);
   while (!model.finished()) {
-    view.printBoard();
-    view.processInput(std::cout);
+    view.printBoard(std::cout);
+    view.processInput(std::cin, std::cout);
   }
   view.showWinner(std::cout);
 }
@@ -872,7 +890,7 @@ int main() {
 \begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
 void TestRunner::run() {
   int success = 0;
-  
+
   for (const TestData& test : tests_) {
     if (test.function()) {
       std::cout << "Test " << test.name << ": success\n";
