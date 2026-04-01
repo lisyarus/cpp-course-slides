@@ -1,0 +1,862 @@
+% (c) Nikita Lisitsa, lisyarus@gmail.com, 2026
+
+\documentclass[10pt]{beamer}
+
+\usepackage[T2A]{fontenc}
+\usepackage[russian]{babel}
+\usepackage{minted}
+
+\usepackage[most]{tcolorbox}
+\tcbuselibrary{minted}
+
+\usepackage{graphicx}
+\graphicspath{ {./images/} }
+
+\usepackage{adjustbox}
+
+\usepackage{color}
+\usepackage{soul}
+\usepackage{multicol}
+\usepackage{hyperref}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc}
+
+\usetheme{metropolis}
+
+\definecolor{red}{rgb}{1,0,0}
+\definecolor{codebg}{RGB}{29,35,49}
+\setminted{fontsize=\footnotesize}
+
+\makeatletter
+\newcommand{\slideimage}[1]{
+  \begin{figure}
+    \begin{adjustbox}{width=\textwidth, totalheight=\textheight-2\baselineskip-2\baselineskip,keepaspectratio}
+      \includegraphics{#1}
+    \end{adjustbox}
+  \end{figure}
+}
+\makeatother
+
+\title{Язык программирования C++}
+\subtitle{Лекция 16: STL, стандартные контейнеры, итераторы, инвалидация ссылок, инвалидация итераторов}
+\date{2026}
+\author{Никита Лисица}
+
+\setbeamertemplate{footline}[frame number]
+
+\begin{document}
+
+\frame{\titlepage}
+
+\begin{frame}[fragile]
+\frametitle{Напоминание: стандартная библиотека}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Поставляется вместе с реализацией (компилятором) языка
+\pause
+\item Заголовочные файлы не имеют расширения:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+#include <vector>
+#include <string>
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Большинство функций и классов лежат в \mintinline{cpp}|namespace std|:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+std::vector<int> v = {1, 2, 3, 4};
+std::string str = "I love Rust";
+\end{tcblisting}
+\pause
+\item Широко использует всё, о чём мы говорили ранее в курсе: классы, шаблоны, исключения
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{STL}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Standard Template Library (STL) -- часть стандартной библиотеки, предоставляющая
+\pause
+\begin{itemize}
+\item Контейнеры (структуры данных для хранения и поиска)
+\pause
+\item Алгоритмы (для обработки данных)
+\end{itemize}
+\pause
+\item \textbf{NB}: часто термином STL называют всю стандартную библиотеку, что неверно
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Контейнеры}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Шаблоны классов, реализующие различные структуры данных
+\pause
+\item Параметризуются типом хранимых объектов, от которых требуется
+\begin{itemize}
+\item Иметь конструктор копирования (или move-конструктор)
+\item Иметь оператор присваивания (или move-присваивания)
+\item Иметь деструктор
+\end{itemize}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Контейнеры}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Все контейнеры имеют
+\pause
+\begin{itemize}
+\item Конструктор по умолчанию
+\pause
+\item Конструктор копирования и оператор присваивания
+\pause
+\item Деструктор
+\pause
+\item \mintinline{cpp}|size()| -- размер контейнера
+\pause
+\item \mintinline{cpp}|empty()| -- проверить на пустоту
+\pause
+\item \mintinline{cpp}|clear()| -- очистить (удалить все элементы)
+\pause
+\item \mintinline{cpp}|swap(other)|
+\pause
+\item \mintinline{cpp}|insert(...)|
+\pause
+\item \mintinline{cpp}|erase(...)|
+\end{itemize}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Последовательые контейнеры}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Сохраняют порядок, в котором были добавлены элементы:
+\pause
+\begin{itemize}
+\item \mintinline{cpp}|std::vector| -- саморасширяющийся массив
+\pause
+\item \mintinline{cpp}|std::list| -- двусвязный список
+\pause
+\item \mintinline{cpp}|std::deque| -- дек (double-ended queue)
+\pause
+\item \mintinline{cpp}|std::string| -- строка (массив символов)
+\pause
+\item \mintinline{cpp}|std::array| -- массив фиксированного размера (аналог \mintinline{cpp}|T[N]|)
+\pause
+\item \mintinline{cpp}|std::forward_list| -- односвязный список
+\end{itemize}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{std::vector}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Саморасширяющийся массив: хранит элементы непрерывно в памяти, выделенной с запасом под новые элементы
+\pause
+\item При исчерпании запаса, увеличивает размер (часто -- в 2 раза) реаллоцируя память и копируя элементы
+\pause
+\item \mintinline{cpp}|size()| -- количество элементов, \mintinline{cpp}|capacity()| -- общий размер памяти (в элементах, не в байтах)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{std::vector}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Добавление/удаление в конец -- амортизированное \(O(1)\)
+\pause
+\item Добавление/удаление в середине -- \(O(N)\), так как нужно сдвинуть остальные элементы
+\pause
+\item Доступ к элементу по индексу -- \(O(1)\)
+\pause
+\item Из-за кешей CPU, prefetching'а и т.п., \mintinline{cpp}|vector| -- часто самый эффективный из контейнеров, и почти всегда это хороший дефолт
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{std::vector}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \mintinline{cpp}|resize(n)| -- изменить размер (количество реально хранимых элементов)
+\pause
+\item \mintinline{cpp}|reserve(n)| -- изменить размер памяти (запаса)
+\pause
+\item \mintinline{cpp}|push_back(x)/pop_back()| -- добавить/удалить последний элемент
+\pause
+\item \mintinline{cpp}|front()/back()| -- получить ссылку на первый/последний элемент
+\pause
+\item \mintinline{cpp}|operator[]| -- доступ по индексу (выход за границу -- UB)
+\pause
+\item \mintinline{cpp}|at(i)| -- доступ по индексу (выход за границу -- исключение)
+\pause
+\item \mintinline{cpp}|data()| -- получить указатель на хранимый массив (напр. для взаимодействия с библиотеками на C)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{std::vector}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+#include <vector>
+
+std::vector<int> v(10);
+v.push_back(42); // 11ый элемент
+v[0] = 13;
+v.at(5) = 14;
+// v.at(11) -- бросит исключение
+v.size(); // вернёт 11
+v.pop_back();
+v.empty(); // вернёт false
+v.clear(); // после этого v.empty() == true
+
+// Передаём данные в сишный API
+glBufferData(v.data(), ...);
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{std::vector}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+std::vector<int> v(10);
+
+// Удалит все элементы кроме первых 5
+v.resize(5);
+// Добавит недостающие эелементы конструктором по умолчанию
+v.resize(20);
+// Можно сказать, чем нужно заполнить новые элементы
+v.resize(30, 5);
+
+// Выделим память под 100 элементов (размер не изменится)
+v.reserve(100);
+// Удалим все элементы, но запас памяти останется под новые
+v.clear();
+
+// Загадка: что это и зачем?
+std::vector<int>().swap(v);
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{std::deque}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Double-ended queue: добавление/удаление с обоих концов за \(O(1)\)
+\pause
+\item Обычно реализуется как массив указателей на массивы фиксированного размера (или даже вектор векторов)
+\pause
+\item Гарантирует постоянство ссылок на элементы (иначе его можно было бы реализовать как циклический массив)
+\pause
+\item Обращение по индексу за \(O(1)\)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{std::deque}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \mintinline{cpp}|size()/resize(n)|
+\pause
+\item \mintinline{cpp}|push_back(x)/pop_back()|
+\pause
+\item \mintinline{cpp}|push_front(x)/pop_front()|
+\pause
+\item \mintinline{cpp}|front()/back()|
+\pause
+\item \mintinline{cpp}|operator[]/at(i)|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{std::list}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Обычный двусвязный список
+\pause
+\item Для удобства реализации на концах всегда есть вспомогательные вершины, не хранящие данные
+\pause
+\item В качестве оптимизации эти вершины склеены в одну (т.е. список циклический) и хранятся полем в самом списке
+\pause
+\item Вставка/удаление в любом месте за \(O(1)\)
+\pause
+\item Нет обращения по индексу
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{std::list}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \mintinline{cpp}|size()/resize(n)|
+\pause
+\item \mintinline{cpp}|push_back(x)/pop_back()|
+\pause
+\item \mintinline{cpp}|push_front(x)/pop_front()|
+\pause
+\item \mintinline{cpp}|merge(list)| -- объединить два сортированных списка в один
+\pause
+\item \mintinline{cpp}|splice(...)| -- переместить часть одного списка в другой список
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Драма о std::list::splice}
+\begin{itemize}
+\usemintedstyle{tango}
+\item По сути, \mintinline{cpp}|splice()| сводится к переподвешиванию указателей в вершинах списка, и должен выполняться за \(O(1)\)
+\pause
+\item Проблема в том, как вычислять размер списка
+\pause
+\item За \(O(1)\) -- хранить поле \mintinline{cpp}|size| и обновлять во всех операциях, тогда \mintinline{cpp}|splice()| придётся за \(O(N)\) вычислять, сколько элементов было перенесено из одного списка в другой
+\pause
+\item За \(O(N)\) -- вычислять проходом по списку, тогда \mintinline{cpp}|splice()| может работать за \(O(1)\)
+\pause
+\item До C++11 не было специфицировано, какой именно вариант предоставляет стандартная библиотека
+\pause
+\item После C++11: \mintinline{cpp}|size()| за \(O(1)\), \mintinline{cpp}|splice()| за \(O(N)\)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{std::string}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Как \mintinline{cpp}|std::vector<char>|, но с особенностями специфичными для строк
+\pause
+\item Для совместимости с C в конце всегда хранит нулевой символ (не учитывается в \mintinline{cpp}|size()|)
+\pause
+\item Есть неявный конструктор от строковых литералов \mintinline{cpp}|string(const char *)|
+\pause
+\item Есть конкатенация строк через \mintinline{cpp}|operator+|
+\pause
+\item Множество специфичных для строк алгоритмов: \mintinline{cpp}|find()|, \mintinline{cpp}|substr()|, и т.п.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{std::string}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+std::string str = "Hello";
+str += ", ";
+std::string str2 = "world!";
+std::string str3 = str + str2;
+
+if (str3.find(',') != std::string::npos) {
+  ...
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{std::string}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Сам \mintinline{cpp}|std::string| -- не шаблон, но специализация шаблона \mintinline{cpp}|std::basic_string<char>|
+\pause
+\item \mintinline{cpp}|std::wstring = std::basic_string<wchar_t>| -- строка \textit{широких символов} (UTF-32 под Linux, UTF-16 под Windows, часто используются в WinAPI)
+\pause
+\item \mintinline{cpp}|std::u8string = std::basic_string<char8_t>| -- всегда UTF-8
+\pause
+\item \mintinline{cpp}|std::u16string = std::basic_string<char16_t>| -- всегда UTF-16
+\pause
+\item \mintinline{cpp}|std::u32string = std::basic_string<char32_t>| -- всегда UTF-32
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Адаптеры контейнеров}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Реализуют интерфейс некоторого контейнера
+\pause
+\item Параметризуются другим контейнером, используемым для хранения элементов
+\pause
+\item \mintinline{cpp}|std::stack<int, std::vector<int>>| -- стек (есть \mintinline{cpp}|push()/pop()|), использующий вектор для хранения
+\pause
+\item \mintinline{cpp}|std::queue<int, std::list<int>>| -- очередь (есть \mintinline{cpp}|push()/pop()|), использующая список для хранения
+\pause
+\item \mintinline{cpp}|std::priority_queue<int, std::deque<int>>| -- приоритетная очередь (куча), использующая деку для хранения
+\pause
+\item \textbf{NB}: для работы с приоритетной очередью часто удобнее использовать свободные функции \mintinline{cpp}|std::make_heap/push_heap/pop_heap|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Итераторы}
+\begin{itemize}
+\usemintedstyle{tango}
+\item В общем случае -- объект, позволяющий итерироваться по последовательности элементов некоторой коллекции/контейнера
+\pause
+\item Есть два стиля реализации итераторов -- условно, Java и C++
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Итераторы: Java style}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Java-style: итератор позволяет один раз пройтись по коллекции
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=java, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+interface Iterator<T> {
+  // Достигнут ли конец последовательности
+  bool hasNext();
+  // Возвращает следующий элемент последовательности
+  T next();
+}
+
+while (it.hasNext()) {
+  T value = it.next();
+  ...
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Итераторы: C++ style}
+\begin{itemize}
+\usemintedstyle{tango}
+\item C++-style: итератор указывает на конкретный элемент, и позволяет итерироваться в разные стороны
+\pause
+\item Сам итератор не знает, где конец последовательности, нужны два итератора \mintinline{cpp}|begin/end| -- \textit{iterator range}
+\pause
+\item Имеют интерфейс, аналогичный указателям
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class iterator {
+public:
+  // Возвращает текущий элемент последовательности
+  T& operator*();
+
+  // Переходит к следующему элементу последовательности
+  iterator& operator++();
+};
+
+for (iterator it = begin; it != end; ++it) {
+  T& value = *it;
+  ...
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Итераторы}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Все STL-контейнеры работают с итераторами (обычно это вложенные классы, напр. \mintinline{cpp}|std::vector<int>::iterator|)
+\pause
+\item Релизация итератора зависит от контейнера, но почти всегда это просто указатель на элемент / вершину списка / etc
+\pause
+\item \mintinline{cpp}|begin()/end()| -- получить итератор на начало/конец
+\pause
+\item \mintinline{cpp}|find(x)| -- возвращает итератор на найденный элемент (или на конец)
+\pause
+\item \mintinline{cpp}|erase(it)| -- удаляет элемент, на который указывает итератор
+\pause
+\item \mintinline{cpp}|insert(it, x)| -- вставляет элемент \textit{перед} тем, на который указывает итератор
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{End итератор}
+\begin{itemize}
+\usemintedstyle{tango}
+\item `Итератор на конец' почти всегда указывает не на последний элемент, а \textit{за} последний элемент
+\pause
+\item Для \mintinline{cpp}|std::vector| -- на элемент \mintinline{cpp}|v.data() + v.size()|
+\pause
+\item Для \mintinline{cpp}|std::list| -- на фиктивную вершину
+\pause
+\item Это оказывается гораздо удобнее для многих алгоритмов
+\pause
+\item Например, если диапазон \mintinline{cpp}|[begin, end)| разбить на два некоторым элементом \mintinline{cpp}|middle|, то получатся два диапазона: \mintinline{cpp}|[begin, middle)| и \mintinline{cpp}|[middle, end)|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Инвалидация ссылок}
+\begin{itemize}
+\usemintedstyle{tango}
+\item В чём проблема такого кода?
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+std::vector<int> v(10);
+int& x = v[5];
+v.push_back(1);
+std::cout << x << std::endl;
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item \mintinline{cpp}|push_back()| может перевыделить память \(\Longrightarrow\) ссылка \mintinline{cpp}|x| может указывать на уже освобождённую память
+\pause
+\item Говорят, что ссылка \textit{инвалидировалась}/\textit{инвалидирована}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Инвалидация итераторов}
+\begin{itemize}
+\usemintedstyle{tango}
+\item В чём проблема такого кода?
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+std::vector<int> v(10);
+// Итераторы вектора умеют прибавлять/вычитать
+// числа, как указатели
+auto it = v.begin() + 5;
+v.push_back(1);
+std::cout << *it << std::endl;
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item \mintinline{cpp}|push_back()| может перевыделить память \(\Longrightarrow\) итератор \mintinline{cpp}|it| может указывать на уже освобождённую память
+\pause
+\item Говорят, что итератор \textit{инвалидировался}/\textit{инвалидирован}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Инвалидация итераторов}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Когда происходит инвалидация ссылок/итераторов?
+\pause
+\item Можно прочитать в документации\pause, но проще знать, как работают контейнеры :)
+\pause
+\item \mintinline{cpp}|std::vector| -- когда может перевыделиться память (при добавлении элемента), при удалении элемента (инвалидируются только итераторы \textit{после} удалённого элемента)
+\pause
+\item \mintinline{cpp}|std::deque| -- добавление/удаление инвалидирует итераторы (перевыделяется массив указателей на блоки), но не ссылки на элементы
+\pause
+\item \mintinline{cpp}|std::list| -- только если удаляется конкретный элемент (инвалидируется итератор на него, и только он)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Инвалидация итераторов}
+\begin{itemize}
+\usemintedstyle{tango}
+\item В чём проблема такого кода?
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Удаляем все чётные элементы
+for (auto it = v.begin(); it != v.end(); ++it)
+  if (*it % 2 == 0)
+    v.erase(it);
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item \mintinline{cpp}|erase()| может инвалидировать итератор
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Инвалидация итераторов}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \mintinline{cpp}|erase(it)| удаляет элемент, и возвращает итератор на следующий
+\pause
+\item В чём проблема такого кода?
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Удаляем все чётные элементы
+for (auto it = v.begin(); it != v.end(); ++it) {
+  if (*it % 2 == 0)
+    it = v.erase(it);
+}
+\end{tcblisting}
+\pause
+\item Пропустим все элементы, следующие за чётными
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Инвалидация итераторов}
+\begin{itemize}
+\usemintedstyle{tango}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Удаляем все чётные элементы
+for (auto it = v.begin(); it != v.end();) {
+  if (*it % 2 == 0)
+    it = v.erase(it);
+  else
+    ++it;
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Инвалидация итераторов}
+\begin{itemize}
+\usemintedstyle{tango}
+\item В чём проблема такого кода?
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Вставляем 0 перед каждым чётным элеменом
+for (auto it = v.begin(); it != v.end(); ++it)
+  if (*it % 2 == 0)
+    v.insert(it, 0);
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item \mintinline{cpp}|insert()| может инвалидировать итератор
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Инвалидация итераторов}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \mintinline{cpp}|insert(it, value)| вставляет элемент, и возвращает новый итератор на него
+\pause
+\item В чём проблема такого кода?
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Вставляем 0 перед каждым чётным элеменом
+for (auto it = v.begin(); it != v.end(); ++it)
+  if (*it % 2 == 0)
+    it = v.insert(it, 0);
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Бескончно будем вставлять 0 перед одним и тем же элементом
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Инвалидация итераторов}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Вставляем 0 перед каждым чётным элеменом
+for (auto it = v.begin(); it != v.end(); ++it) {
+  if (*it % 2 == 0) {
+    it = v.insert(it, 0);
+    ++it;
+  }
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Ассоциативные контейнеры}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Хранят элементы по-особому для быстрого поиска
+\pause
+\item Упорядоченные:
+\begin{itemize}
+\item \mintinline{cpp}|set|, \mintinline{cpp}|multiset|, \mintinline{cpp}|map|, \mintinline{cpp}|multimap|
+\pause
+\item Реализуются в виде дерева (обычно -- красно-чёрное)
+\pause
+\item Требуют отношение порядка на элементах (\mintinline{cpp}|operator <|)
+\pause
+\item Операции выполняются за \(O(\log N)\)
+\end{itemize}
+\pause
+\item Непорядоченные:
+\begin{itemize}
+\item \mintinline{cpp}|unordered_set|, \mintinline{cpp}|unordered_multiset|, \mintinline{cpp}|unordered_map|, \mintinline{cpp}|unordered_multimap|
+\pause
+\item Реализуются в виде хеш-таблицы с закрытой адресацией
+\pause
+\item Требуют функцию, вычисляющую хеш
+\pause
+\item Операции выполняются за \(O(1)\) в среднем, за \(O(N)\) в худшем случае
+\end{itemize}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Ассоциативные контейнеры}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \mintinline{cpp}|set|, \mintinline{cpp}|unordered_set| -- хранят уникальные элементы (без повторений)
+\pause
+\item \mintinline{cpp}|multiset|, \mintinline{cpp}|unordered_multiset| -- элементы могут повторяться
+\pause
+\item \mintinline{cpp}|map|, \mintinline{cpp}|unordered_map| -- хранят пары (ключ,значение) для уникальных ключей
+\pause
+\item \mintinline{cpp}|multimap|, \mintinline{cpp}|unordered_multimap| -- ключи могут повторяться
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{set}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+std::set<int> set;
+set.insert(2);
+set.insert(1);
+set.insert(1); // вторая копия НЕ добавится
+set.insert(9);
+set.insert(5);
+
+set.contains(1); // true
+set.contains(3); // false
+set.size(); // 4
+
+// Выведется 1 2 5 9
+for (auto it = set.begin(); it != set.end(); ++it) {
+  std::cout << *it << " ";
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{multiset}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+std::multiset<int> set;
+set.insert(2);
+set.insert(1);
+set.insert(1); // вторая копия добавится
+set.insert(9);
+set.insert(5);
+
+set.contains(1); // true
+set.contains(3); // false
+set.size(); // 5
+
+// Выведется 1 1 2 5 9
+for (auto it = set.begin(); it != set.end(); ++it) {
+  std::cout << *it << " ";
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{unordered\_set}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+std::unordered<int> set;
+set.insert(2);
+set.insert(1);
+set.insert(1); // вторая копия НЕ добавится
+set.insert(9);
+set.insert(5);
+
+set.contains(1); // true
+set.contains(3); // false
+set.size(); // 4
+
+// Выведутся элементы в каком-то порядке,
+// например 5 2 1 9
+for (auto it = set.begin(); it != set.end(); ++it) {
+  std::cout << *it << " ";
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Константные итераторы}
+\begin{itemize}
+\usemintedstyle{tango}
+\item У \mintinline{cpp}|*set| итераторы \textit{константные}, т.е. не позволяют модифицировать элемент, на который ссылаются
+\pause
+\item Иначе нарушились бы внутренние инварианты структуры данных (порядок в дереве, индекс в хеш-таблице)
+\pause
+\item У всех контейнеров есть отдельные типы \mintinline{cpp}|iterator| и \mintinline{cpp}|const_iterator| (у \mintinline{cpp}|*set| они совпадают)
+\pause
+\item \mintinline{cpp}|cbegin()/cend()| возвращают константные итераторы
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{map, std::pair}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \mintinline{cpp}|std::pair<X, Y>| -- вспомогательный класс, хранящий пару элементов
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename X, typename Y>
+struct pair {
+  X first;
+  Y second;
+};
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Различные варианты контейнера \mintinline{cpp}|map<Key, Value>| хранят в себе \mintinline{cpp}|std::pair<const Key, Value>|
+\pause
+\item В остальном \mintinline{cpp}|map| аналогичен \mintinline{cpp}|set|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{map, std::pair}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+std::map<std::string, int> settings;
+
+// Явное создание шаблона std::pair
+settings.insert(std::pair<std::string, int>("volume", 100));
+
+// Использование вспомогательной функции
+settings.insert(std::make_pair("brightness", 80));
+
+// Использование вывода параметров шаблонов (С++17)
+settings.insert(std::pair("ui_scale", 3));
+
+// Использование list initialization
+settings.insert({"difficulty", 5});
+
+// Итерация по элементам:
+for (auto it = settings.begin(); it != settings.end(); ++it)
+  std::cout << it->first << ": " << it->second << std::endl;
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{map: operator[]}
+\begin{itemize}
+\usemintedstyle{tango}
+\item У \mintinline{cpp}|map| и \mintinline{cpp}|unordered_map| есть \mintinline{cpp}|operator[]|, упрощающий работу с ними:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+std::map<std::string, int> settings;
+settings["volume"] = 100;
+settings["brightness"] = 80;
+
+// Что произойдёт здесь?
+std::cout << settings["ui_scale"];
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Обращение к несуществующему элементу через \mintinline{cpp}|operator[]| создаст его с помощью конструктора по умолчанию
+\pause
+\item \(\Longrightarrow\) Нужно использовать аккуратно, либо заменить на \mintinline{cpp}|map::find()|
+\end{itemize}
+\end{frame}
+
+\end{document}
