@@ -1,0 +1,696 @@
+% (c) Nikita Lisitsa, lisyarus@gmail.com, 2026
+
+\documentclass[10pt]{beamer}
+
+\usepackage[T2A]{fontenc}
+\usepackage[russian]{babel}
+\usepackage{minted}
+
+\usepackage[most]{tcolorbox}
+\tcbuselibrary{minted}
+
+\usepackage{graphicx}
+\graphicspath{ {./images/} }
+
+\usepackage{adjustbox}
+
+\usepackage{color}
+\usepackage{soul}
+\usepackage{multicol}
+\usepackage{hyperref}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc}
+
+\usetheme{metropolis}
+
+\definecolor{red}{rgb}{1,0,0}
+\definecolor{codebg}{RGB}{29,35,49}
+\setminted{fontsize=\footnotesize}
+
+\makeatletter
+\newcommand{\slideimage}[1]{
+  \begin{figure}
+    \begin{adjustbox}{width=\textwidth, totalheight=\textheight-2\baselineskip-2\baselineskip,keepaspectratio}
+      \includegraphics{#1}
+    \end{adjustbox}
+  \end{figure}
+}
+\makeatother
+
+\title{Язык программирования C++}
+\subtitle{Лекция 16: STL, функциональные объекты, стандартные алгоритмы, iterator traits, категории итераторов, tag dispatching}
+\date{2026}
+\author{Никита Лисица}
+
+\setbeamertemplate{footline}[frame number]
+
+\begin{document}
+
+\frame{\titlepage}
+
+\begin{frame}[fragile]
+\frametitle{Напоминание: итераторы}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Классы, позволяющиеся итерироваться по коллекции (в том числе указывать на конкретный её элемент)
+\pause
+\item Позволяют писать универсальный код, не зависящий от конкретного контейнера
+\pause
+\item По семантике и синтаксису имитируют указатели:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+std::list<int> l;
+...
+auto it = l.begin();
+// Сдвинуться на следующий элемент
+++it;
+// Прочитать текущий элемент
+int x = *it;
+// Записать текущий элемент
+*it = 42;
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Напоминание: итераторы}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Диапазон элементов задаётся парой в виде полуоткрытого интервала \mintinline{cpp}|[begin, end)|
+\pause
+\item \mintinline{cpp}|begin| -- итератор на первый элемент диапазона
+\pause
+\item \mintinline{cpp}|end| -- итератор \textit{за} последний элемент диапазона (на первый элемент \textit{после} диапазона)
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
++----+----+----+----+----+----+----+----+----+----+----+
+|  4 | 47 | -5 | 19 | 100| 16 | 31 |-87 | 59 |  0 | 67 |
++----+----+----+----+----+----+----+----+----+----+----+
+
+^                                                      ^
+|                                                      |
+begin                                                  end
+\end{tcblisting}
+\pause
+\item \mintinline{cpp}|end| часто используется для указания отсутствия элемента (напр. при поиске)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Функциональные объекты}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Класс, у которого перегружен оператор вызова \mintinline{cpp}|operator()|
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+struct add {
+  int operator()(int x, int y) const {
+    return x + y;
+  }
+};
+
+add func;
+int x = func(3, 4); // x = 7
+\end{tcblisting}
+\pause
+\item \textbf{NB}: Раньше такие классы называли \textit{функторами}, но это пересекается с понятием из теории категорий, поэтому сейчас лучше говорить \textit{функциональный объект}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Функциональные объекты}
+\begin{itemize}
+\usemintedstyle{tango}
+\item По смыслу похожи на функции, но мощнее\pause: позволяют хранить в себе данные
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+struct less_than {
+  int reference;
+
+  bool operator()(int x) const {
+    return x < reference;
+  }
+};
+
+less_than pred(10);
+pred(8); // true
+pred(12); // false
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Предикаты}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Функциональные объекты, возвращающие \mintinline{cpp}|bool|, называют \textit{предикатами}
+\pause
+\item Предикат с одним аргументом -- \textit{унарный (unary predicate)}
+\pause
+\item Предикат с двумя аргументами -- \textit{бинарный (binary predicate)}
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Бинарный предикат
+struct contains {
+  int reference;
+
+  bool operator()(int x, int y) const {
+    return x <= reference && reference <= y;
+  }
+};
+
+contains pred(10);
+pred(6, 7); // false
+pred(8, 12); // true
+pred(12, 15); // false
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Предикаты}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Функциональные объекты могут менять своё состояние при вызове
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+struct accumulator {
+  int sum = 0;
+
+  void operator()(int x) {
+    sum += x;
+  }
+};
+
+accumulator f;
+f(10);
+f(25);
+f(32);
+
+// f.sum == 67
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Стандартные алгоритмы}
+\begin{itemize}
+\usemintedstyle{tango}
+\item В STL более 100 алгоритмов, почти все -- в заголовочном файле \mintinline{cpp}|<algorithm>|
+\pause
+\begin{itemize}
+\item Алгоритмы поиска
+\pause
+\item Алгоритмы, модифицирующие последовательности
+\pause
+\item Алгоритмы разбиения и сортировки
+\pause
+\item Алгоритмы на сортированных последовательностях
+\pause
+\item Алгоритмы работы с кучей (структурой данных)
+\pause
+\item Алгоритмы генерации перестановок
+\pause
+\item И т.д.
+\end{itemize}
+\pause
+\item Мы рассмотрим только часть из них
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Мини-алгоритмы}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \mintinline{cpp}|swap(T& x, T& y)| -- поменять местами два значения
+\pause
+\item \mintinline{cpp}|iter_swap(It p, It q)| -- поменять местами значения, на которые указывают итераторы
+\pause
+\item \mintinline{cpp}|min(const T& x, const T& y)| -- минимум из двух значений
+\pause
+\item \mintinline{cpp}|max(const T& x, const T& y)| -- максимум из двух значений
+\pause
+\item \mintinline{cpp}|clamp(const T& x, const T& min, const T& max)| -- ограничить значение диапазоном \mintinline{cpp}|[min, max]|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Min/max с предикатом}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Всегда, когда стандартный алгоритм использует сравнение оператором \mintinline{cpp}|<|, у него есть версия, принимающая произвольный бинарный предикат
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+struct point {
+  float x;
+  float y;
+};
+
+struct less_by_x {
+  bool operator()(const point& p1, const point& p2) const {
+    return p1.x < p2.x;
+  }
+};
+
+point p1{1.f, 4.f};
+point p2{3.f, 2.f};
+
+// Шаблонные параметры выводятся автоматически
+std::max(p1, p2, less_by_x());
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Немодифицирующие алгоритмы на последовательностях}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \mintinline{cpp}|count(It begin, It end, const T& x)| -- сколько раз в последовательности встречается значение \mintinline{cpp}|x|
+\pause
+\item \mintinline{cpp}|count_if(It begin, It end, UnaryPred pred)| -- сколько раз в последовательности встречаются элементы, удовлетворяющие предикату
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+struct divisible_by {
+  int divisor;
+  bool operator()(int x) const {
+    return (x % divisor) == 0;
+  }
+};
+
+std::vector<int> v;
+...
+std::count_if(v.begin(), v.end(), divisible_by(8));
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Немодифицирующие алгоритмы}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \mintinline{cpp}|all_of(It begin, It end, UnaryPred pred)| -- правда ли, что все элементы последовательности удовлетворяют предикату
+\pause
+\item \mintinline{cpp}|any_of(It begin, It end, UnaryPred pred)| -- правда ли, что хотя бы один элемент последовательности удовлетворяет предикату
+\pause
+\item \mintinline{cpp}|none_of(It begin, It end, UnaryPred pred)| -- правда ли, что все элементы последовательности не удовлетворяют предикату
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Алгоритмы сравнения}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \mintinline{cpp}|equal(It1 begin1, It1 end1, It2 begin2)| -- совпадают ли последовательности (должны быть одинаковой длины, поэтому не принимает \mintinline{cpp}|end2|)
+\pause
+\item \mintinline{cpp}|equal(It1 begin1, It1 end1, It2 begin2, It2 end2)| -- то же самое (последовательности разной длины считаются не совпадающими)
+\pause
+\item \mintinline{cpp}|pair<It1, It2> mismatch(It1 begin1, It1 end1, It2 begin2)| -- вернуть первое несовпадение в последовательностях
+\pause
+\item \mintinline{cpp}|pair<It1, It2> mismatch(It1, It1, It2, It2)| -- аналогично
+\pause
+\item \mintinline{cpp}|lexicographical_compare(It1, It1, It2, It2)| -- сравнить две последовательности лексикографически
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Алгоритмы поиска}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \mintinline{cpp}|It find(It begin, It end, const T& x)| -- найти первое вхождение элемента \mintinline{cpp}|x| (или \mintinline{cpp}|end|, если такого нет)
+\pause
+\item \mintinline{cpp}|It find_if(It begin, It end, UnaryPred pred)| -- найти первое вхождение элемента, удовлетворяющего предикату
+\pause
+\item \mintinline{cpp}|It min_element(It begin, It end)| -- найти минимальный элемент последовательности
+\pause
+\item \mintinline{cpp}|It max_element(It begin, It end)| -- найти максимальный элемент последовательности
+\pause
+\item \mintinline{cpp}|pair<It, It> minmax_element(It begin, It end)| -- найти минимальный и максимальный элементы последовательности (за один проход)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Модифицирующие алгоритмы}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \mintinline{cpp}|fill(It begin, It end, const T& x)| -- заполнить последовательность копиями значения \mintinline{cpp}|x|
+\pause
+\item \mintinline{cpp}|generate(It begin, It end, Generator gen)| -- заполнить последовательность результатами вызова \mintinline{cpp}|gen()|
+\pause
+\item \mintinline{cpp}|copy(ItIn src_begin, ItIn src_end, ItOut dst_begin)| -- скопировать последовательность в последовательность, начинающуюся в \mintinline{cpp}|dst_begin|
+\pause
+\item \mintinline{cpp}|copy_if(ItIn, ItIn, ItOut, UnaryPred)| -- скопировать элементы, удовлетворяющие предикату
+\pause
+\item \mintinline{cpp}|reverse(It begin, It end)| -- обратить порядок элементов последовательности
+\pause
+\item \mintinline{cpp}|rotate(It begin, It middle, It end)| -- циклически сдвинуть элементы последовательности
+\pause
+\item \mintinline{cpp}|transform(ItIn, ItIn, ItOut, UnaryOp op)| -- как \mintinline{cpp}|copy|, но копируется результат применения \mintinline{cpp}|op(x)| к элементам
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Алгоритмы сортировки}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \mintinline{cpp}|sort(It begin, It end)| -- отсортировать последовательность
+\pause
+\item \mintinline{cpp}|stable_sort(It begin, It end)| -- отсортировать стабильной сортировкой (равные элементы сохраняют порядок)
+\pause
+\item \mintinline{cpp}|partial_sort(It begin, It middle, It end)| -- сдвинуть младшие \mintinline{cpp}|middle - begin| элементов последовательности в начало
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Пример реализации алгоритма}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename InputIt, typename OutputIt>
+OutputIt copy(InputIt src_begin, InputIt src_end,
+  OutputIt dst_begin)
+{
+  for (; src_begin != src_end;)
+    *dst_begin++ = *src_begin++;
+
+  return dst_begin;
+}
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item \mintinline{cpp}|*p++ = *q++;| -- классический способ скопировать последовательность
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Пример реализации алгоритма}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename InputIt, typename OutputIt,
+  typename UnaryPred>
+OutputIt copy(InputIt src_begin, InputIt src_end,
+  OutputIt dst_begin, UnaryPred pred)
+{
+  for (; src_begin != src_end; ++src_begin)
+    if (pred(*src_begin))
+      *dst_begin++ = *src_begin;
+
+  return dst_begin;
+}
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item На \href{https://en.cppreference.com}{\nolinkurl{cppreference.com}} почти к любому алгоритму есть примеры реализации
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Iterator traits}
+\begin{itemize}
+\item Хотим реализовать быструю сортировку
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename It>
+void quick_sort(It begin, It end)
+{
+  // Выбираем опорную точку для сортировки
+  const T& pivot = ...;
+}
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Откуда нам взять тип \mintinline{cpp}|T|?
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Iterator traits}
+\begin{itemize}
+\item Добавим тип элемента в сам класс итератора:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T>
+class vector {
+  class iterator {
+    using value_type = T;
+  };
+};
+
+template <typename It>
+void quick_sort(It begin, It end)
+{
+  // Выбираем опорную точку для сортировки
+  const It::value_type& pivot = ...;
+}
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Ошибка компиляции: компилятор не понимает, \mintinline{cpp}|It::value_type| это тип или статическая переменная
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Iterator traits}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Добавим волшебное слово \mintinline{cpp}|typename|:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T>
+class vector {
+  class iterator {
+    using value_type = T;
+  };
+};
+
+template <typename It>
+void quick_sort(It begin, It end)
+{
+  // Выбираем опорную точку для сортировки
+  const typename It::value_type& pivot = ...;
+}
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Теперь всё компилируется, но не работает если \mintinline{cpp}|It| это указатель :(
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Iterator traits}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Решение: \textit{iterator traits (от англ. trait -- свойство, признак, черта)}
+\pause
+\item Стандартный шаблонный класс, параметризующийся типом итератора, и хранящий некую информацию о нём
+\pause
+\item По умолчанию достаёт все данные из самого типа итератора:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename Iterator>
+struct iterator_traits {
+  using value_type = typename Iterator::value_type;
+  using reference_type = typename Iterator::reference_type;
+  ...
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Iterator traits}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Есть частичная специализация для указателей:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T>
+struct iterator_traits<T*> {
+  using value_type = T;
+  using reference_type = T&;
+  ...
+};
+
+template <typename T>
+struct iterator_traits<const T*> {
+  using value_type = T const;
+  using reference_type = T const&;
+  ...
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Iterator traits}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Решение нашей проблемы:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename It>
+void quick_sort(It begin, It end)
+{
+  // Работает как для указателей, так и для vector::iterator
+  using traits = std::iterator_traits<It>;
+  const typename traits::value_type& pivot = ...;
+}
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item \textbf{NB}: во многих случаях вместо \mintinline{cpp}|std::iterator_traits| проще использовать вывод типов (\mintinline{cpp}|auto|):
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename It>
+void quick_sort(It begin, It end)
+{
+  const auto& pivot = *begin;
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Алгоритмы на итераторах}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \mintinline{cpp}|next(it)| -- вернуть следующий итератор, не меняя сам \mintinline{cpp}|it|
+\pause
+\item \mintinline{cpp}|next(it, n)| -- вернуть копию, сдвинутую на \mintinline{cpp}|n| элементов
+\pause
+\item \mintinline{cpp}|advance(it, n)| -- сдвинуть \mintinline{cpp}|it| (принимается по ссылке) на \mintinline{cpp}|n| элементов
+\pause
+\item \mintinline{cpp}|distance(it1, it2)| -- на сколько нужно сдвинуть \mintinline{cpp}|it1|, чтобы получить \mintinline{cpp}|it2|
+\pause
+\item Как быстро работают эти алгоритмы? \pause Зависит от конкретного контейнера: \(O(1)\) для вектора, \(O(N)\) для списка
+\pause
+\item Как написать разную реализацию алгоритмов для разных контейнеров? \pause \(\Longrightarrow\) \textit{категории итераторов}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Категории итераторов}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Категория итератора определяет, какие операции этот итератор умеет выполнять (и эффективно)
+\pause
+\begin{itemize}
+\item \textit{Forward iterator}: только \mintinline{cpp}|*it| и \mintinline{cpp}|++it|
+\pause
+\item \textit{Bidirectional iterator}: ещё \mintinline{cpp}|--it|
+\pause
+\item \textit{Random access iterator}: \mintinline{cpp}|it += n| и \mintinline{cpp}|it -= n|
+\end{itemize}
+\pause
+\item Итераторы по вектору или деке -- random access
+\pause
+\item Итераторы по списку или set/map -- bidirectional
+\pause
+\item Итераторы по односвязному списку -- forward
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Категории итераторов}
+\begin{itemize}
+\usemintedstyle{tango}
+\item В стандартной библитеке есть специальные классы-теги для определения категорий итераторов:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+struct forward_iterator_tag {};
+struct bidirectional_iterator_tag : forward_iterator_tag {};
+struct random_access_iterator_tag : bidirectional_iterator_tag{};
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Они наследуются друг от друга, создавая иерархию категорий
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Категории итераторов}
+\begin{itemize}
+\usemintedstyle{tango}
+\item В \mintinline{cpp}|iterator_traits| (и в самих классах итераторов) указывается их категория:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T>
+class list {
+  class iterator {
+    using iterator_category = bidirectional_iterator_tag;
+  };
+};
+
+template <typename T>
+struct iterator_traits<T*> {
+  using iterator_category = random_access_iterator_tag;
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Tag dispatching}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Как реализовать \mintinline{cpp}|std::next(it, n)| эффективно для разных итераторов? \pause Использовать перегрузку функций:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename It>
+It next(It it, int n, std::bidirectional_iterator_tag) {
+  for (; n > 0; --n)
+    ++it;
+  return it;
+}
+
+template <typename It>
+It next(It it, int n, std::random_access_iterator_tag) {
+  it += n;
+  return it;
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Tag dispatching}
+\begin{itemize}
+\usemintedstyle{tango}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename It>
+It next(It it, int n) {
+  using traits = std::iterator_traits<It>;
+  return next(it, n, typename traits::iterator_category{});
+}
+\end{tcblisting}
+\pause
+\item Такой подход -- перегрузка функции на основе дополнительного параметра-тега -- называется \textit{tag dispatching}, и очень распространён в шаблонном коде
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Оператор \texttt{-->}}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Цикл вида \mintinline{cpp}|for (; n > 0; --n)| можно записать смешнее:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+while (n --> 0) {
+  ...
+}
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Это не отдельный оператор, а комбинация постфиксного декремента \mintinline{cpp}|n--| и сравнения \mintinline{cpp}|(n--) > 0|
+\pause
+\item Такой цикл выполнит ровно \mintinline{cpp}|n| итераций :)
+\end{itemize}
+\end{frame}
+
+\end{document}
