@@ -238,10 +238,10 @@ f(32);
 \end{frame}
 
 \begin{frame}[fragile]
-\frametitle{Min/max с предикатом}
+\frametitle{Min/max с компаратором}
 \begin{itemize}
 \usemintedstyle{tango}
-\item Всегда, когда стандартный алгоритм использует сравнение оператором \mintinline{cpp}|<|, у него есть версия, принимающая произвольный бинарный предикат
+\item Если стандартный алгоритм использует сравнение оператором \mintinline{cpp}|<|, у него всегда есть версия, принимающая произвольный бинарный предикат -- \textit{компаратор}
 \pause
 \usemintedstyle{lightbulb}
 \begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
@@ -362,6 +362,8 @@ std::count_if(v.begin(), v.end(), divisible_by(8));
 \item \mintinline{cpp}|stable_sort(It begin, It end)| -- отсортировать стабильной сортировкой (равные элементы сохраняют порядок)
 \pause
 \item \mintinline{cpp}|partial_sort(It begin, It middle, It end)| -- сдвинуть младшие \mintinline{cpp}|middle - begin| элементов последовательности в начало
+\pause
+\item Есть версии, принимающие компаратор
 \end{itemize}
 \end{frame}
 
