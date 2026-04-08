@@ -244,6 +244,8 @@ v.clear();
 
 // Загадка: что это и зачем?
 std::vector<int>().swap(v);
+// То же самое:
+v.clear(); v.shrink_to_fit();
 \end{tcblisting}
 \end{itemize}
 \end{frame}
@@ -461,7 +463,7 @@ for (iterator it = begin; it != end; ++it) {
 \frametitle{Итераторы}
 \begin{itemize}
 \usemintedstyle{tango}
-\item Все STL-контейнеры работают с итераторами (обычно это вложенные классы, напр. \mintinline{cpp}|std::vector<int>::iterator|)
+\item Все STL-контейнеры имеют свои итераторы (обычно это вложенные классы, напр. \mintinline{cpp}|std::vector<int>::iterator|)
 \pause
 \item Релизация итератора зависит от контейнера, но почти всегда это просто указатель на элемент / вершину списка / etc
 \pause
@@ -675,7 +677,7 @@ for (auto it = v.begin(); it != v.end(); ++it) {
 \item Операции выполняются за \(O(\log N)\)
 \end{itemize}
 \pause
-\item Непорядоченные:
+\item Неупорядоченные:
 \begin{itemize}
 \item \mintinline{cpp}|unordered_set|, \mintinline{cpp}|unordered_multiset|, \mintinline{cpp}|unordered_map|, \mintinline{cpp}|unordered_multimap|
 \pause
@@ -856,6 +858,20 @@ std::cout << settings["ui_scale"];
 \item Обращение к несуществующему элементу через \mintinline{cpp}|operator[]| создаст его с помощью конструктора по умолчанию
 \pause
 \item \(\Longrightarrow\) Нужно использовать аккуратно, либо заменить на \mintinline{cpp}|map::find()|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Multiset}
+\begin{itemize}
+\usemintedstyle{tango}
+\item У multi-версий ассоциативных контейнеров есть специальные методы для работы с последовательностью одинаковых элементов/ключей
+\pause
+\item \mintinline{cpp}|count(x)| -- сколько в контейнере содержится элементов, равных \mintinline{cpp}|x|
+\pause
+\item \mintinline{cpp}|equal_range(x)| -- вернуть пару \mintinline{cpp}|[begin, end)| итераторов на диапазон элементов, равных \mintinline{cpp}|x|
+\pause
+\item \textbf{NB:} у не-multi контейнеров эти методы тоже есть для единообразия интерфейса, но менее полезны (например, \mintinline{cpp}|count(x)| всегда возвращает 0 или 1)
 \end{itemize}
 \end{frame}
 
