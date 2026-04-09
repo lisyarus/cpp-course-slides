@@ -93,6 +93,7 @@ int x = *it;
 begin                                                  end
 \end{tcblisting}
 \pause
+\usemintedstyle{tango}
 \item \mintinline{cpp}|end| часто используется для указания отсутствия элемента (напр. при поиске)
 \end{itemize}
 \end{frame}
@@ -330,6 +331,8 @@ std::count_if(v.begin(), v.end(), divisible_by(8));
 \item \mintinline{cpp}|It max_element(It begin, It end)| -- найти максимальный элемент последовательности
 \pause
 \item \mintinline{cpp}|pair<It, It> minmax_element(It begin, It end)| -- найти минимальный и максимальный элементы последовательности (за один проход)
+\pause
+\item \mintinline{cpp}|It lower/upper_bound(It begin, It end, const T& x)| -- двоичный поиск
 \end{itemize}
 \end{frame}
 
