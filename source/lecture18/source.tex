@@ -1,0 +1,911 @@
+% (c) Nikita Lisitsa, lisyarus@gmail.com, 2026
+
+\documentclass[10pt]{beamer}
+
+\usepackage[T2A]{fontenc}
+\usepackage[russian]{babel}
+\usepackage{minted}
+
+\usepackage[most]{tcolorbox}
+\tcbuselibrary{minted}
+
+\usepackage{graphicx}
+\graphicspath{ {./images/} }
+
+\usepackage{adjustbox}
+
+\usepackage{color}
+\usepackage{soul}
+\usepackage{multicol}
+\usepackage{hyperref}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc}
+
+\usetheme{metropolis}
+
+\definecolor{red}{rgb}{1,0,0}
+\definecolor{codebg}{RGB}{29,35,49}
+\setminted{fontsize=\footnotesize}
+
+\makeatletter
+\newcommand{\slideimage}[1]{
+  \begin{figure}
+    \begin{adjustbox}{width=\textwidth, totalheight=\textheight-2\baselineskip-2\baselineskip,keepaspectratio}
+      \includegraphics{#1}
+    \end{adjustbox}
+  \end{figure}
+}
+\makeatother
+
+\title{Язык программирования C++}
+\subtitle{Лекция 18: Приведение типов, RTTI, typeid, lvalue/rvalue, move, вывод типов, range-based for}
+\date{2026}
+\author{Никита Лисица}
+
+\setbeamertemplate{footline}[frame number]
+
+\begin{document}
+
+\frame{\titlepage}
+
+\begin{frame}[fragile]
+\frametitle{Напоминание: приведение типов в C++}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Указатели автоматически приводятся к \mintinline{cpp}|void*|, к константной версии того же указателя, и к указателю на родительский класс:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int i = 12;
+void* p = &i; // OK
+const int* q = &i; // OK
+
+struct A {};
+struct B : A {};
+
+B b;
+A* pa = &b; // OK
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Напоминание: приведение типов в C++}
+\begin{itemize}
+\usemintedstyle{tango}
+\item В других случаях будет ошибка компиляции:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+void* p = ...;
+int* q1 = p; // Ошибка компиляции
+int* q2 = (int*)p; // OK, явное приведение
+
+const int i = 12;
+int* pi1 = &i; // Ошибка компиляции
+int* pi2 = (int*)&i; // OK, явное приведение
+
+A a;
+B* pb1 = &a; // Ошибка компиляции
+B* pb2 = (B*)&a; // OK, явное приведение
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Напоминание: приведение типов в C++}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Все числовые типы приводятся друг к другу:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int i = 12;
+float f = i;
+double d = f;
+char c = d;
+std::uint32_t u = f;
+\end{tcblisting}
+\pause
+\item \textbf{NB}: часть таких приведений -- \textit{undefined behavior}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Напоминание: приведение типов в C++}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Для приведения своих типов (структур/классов) можно сделать неявный конструктор или оператор приведения:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class BigInteger {
+public:
+  BigInteger(int value); // Приведение int -> BigInteger
+  operator int() const; // Приведение BigInteger -> int
+};
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item \textbf{NB}: если для приведения типов \mintinline{cpp}|A -> B| есть как оператор приведения \mintinline{cpp}|A::operator B()|, так и конструктор \mintinline{cpp}|B::B(A)|, будет ошибка компиляции
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Приведение типов в C++}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Конструкция \mintinline{cpp}|(int*)p| или \mintinline{cpp}|(float)42| или \mintinline{cpp}|(int)myBigInt| называется \textit{приведением типов в стиле Си (C-style cast)}
+\pause
+\item В C++ принято её не использовать, так как она умеет слишком многое, и плохо выражает намерение программиста
+\pause
+\item Вместо этого, есть 4 специализированных оператора приведения типов, которые выглядят как шаблонные функции:
+\pause
+\begin{itemize}
+\item \mintinline{cpp}|static_cast<T>(x)|
+\pause
+\item \mintinline{cpp}|reinterpret_cast<T>(x)|
+\pause
+\item \mintinline{cpp}|const_cast<T>(x)|
+\pause
+\item \mintinline{cpp}|dynamic_cast<T>(x)|
+\end{itemize}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{static\_cast}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Всё, что умеют неявные приведения типов
+\pause
+\item Приведение указателя на базовый класс к указателю на наследник \textit{(downcasting)}
+\pause
+\item Приведение указателя на \mintinline{cpp}|void| к другому типу указателя
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int i = static_cast<int>(3.14f);
+
+A* pa = new B;
+B* pb = static_cast<B*>(pa);
+
+void* pv = pa;
+A* pa2 = static_cast<A*>(pv);
+\end{tcblisting}
+\pause
+\item Легче увидеть в коде, понятнее намерения программиста
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{reinterpret\_cast}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Приведение между указателями любых типов
+\pause
+\item Приведение между ссылками любых типов
+\pause
+\item Приведение между указателями и числами
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int* p = new int[100];
+float* f = reinterpret_cast<float*>(p);
+
+int& ri = p[10];
+float& rf = reinterpret_cast<float&>(ri);
+
+std::uint64_t address = reinterpret_cast<std::uint64_t>(p);
+int* q = reinterpret_cast<int*>(address);
+\end{tcblisting}
+\pause
+\item Обычно нужен в низкоуровневом коде
+\pause
+\item Нужно использовать с осторожностью
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{const\_cast}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Позволяет убрать/добавить константность у указателя или ссылки
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+const int x = 42;
+int* p = &x; // Ошибка компиляции
+int* q = const_cast<int*>(&x); // OK
+*q = 67; // Undefined behavior
+\end{tcblisting}
+\pause
+\item Нужно использовать с крайней осторожностью
+\pause
+\usemintedstyle{tango}
+\item Почти никогда не нужен, исключение -- реализация парных \mintinline{cpp}|const| и не-\mintinline{cpp}|const| методов у классов
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{const\_cast}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Часто, класс предоставляет две версии метода (константную и неконстантную), которые практически не отличаются реализацией
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename Key, typename Value>
+class map {
+  // ...
+
+  const Value& at(const Key& key) const {
+    // Поиск в дереве
+  }
+
+  Value& at(const Key& key) {
+    // Точно такой же поиск в дереве :)
+  }
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{const\_cast}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Возможное решение -- использовать \mintinline{cpp}|const_cast|
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename Key, typename Value>
+class map {
+  // ...
+
+  const Value& at(const Key& key) const {
+    // Поиск в дереве
+  }
+
+  Value& at(const Key& key) {
+    // Здесь const_cast безопасен: мы знаем, что объект *this
+    // на самом деле неконстантный
+    return const_cast<Value&>(const_cast<map&>(*this).at(key));
+  }
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{dynamic\_cast}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Безопасное приведение указателя/ссылки на базовый класс к указателю на родительский класс
+\pause
+\item Если приведение некорректно, возвращается нулевой указатель, либо (в случае приведения типов ссылок) бросается исключение \mintinline{cpp}|std::bad_cast|
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+struct A {
+  virtual ~A() {}
+};
+
+struct B : A { ... };
+
+struct C : A { ... };
+
+A * pa = new B;
+
+dynamic_cast<B*>(pa); // вернёт реальный указатель
+dynamic_cast<C*>(pa); // вернёт нулевой указатель
+
+dynamic_cast<B&>(*pa); // вернёт реальную ссылку
+dynamic_cast<C&>(*pa); // бросит std::bad_cast
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Run-Time Type Information (RTTI)}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Как работает \mintinline{cpp}|dynamic_cast|?
+\pause
+\item Переходит по указателю на таблицу виртуальных функций, рядом с ней компилятор кладёт метаинформацию о типе
+\pause
+\item \(\Longrightarrow\) \mintinline{cpp}|dynamic_cast| работает только для классов с виртуальными методами
+\pause
+\item Такая технология называется \textit{Run-Time Type Information (RTTI)}
+\pause
+\item При программировании под микроконтроллеры или встраиваемые устройства её часто отключают (у GCC флаг \mintinline{text}|-fno-rtti|)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{typeid}
+\begin{itemize}
+\usemintedstyle{tango}
+\item В стандартной библиотеке есть специальный класс \mintinline{cpp}|std::type_info| в файле \mintinline{cpp}|<typeinfo>|
+\pause
+\item Он позволяет узнать немного информации о типе объекта -- вывести имя \textit{(после name mangling'а!)} или посчитать хеш
+\pause
+\item Чтобы достать \mintinline{cpp}|std::type_info| по конкретному объекту или типу, есть оператор \mintinline{cpp}|typeid|
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+#include <typeinfo>
+#include <iostream>
+
+int main() {
+  int i = 10;
+  std::cout << typeid(i).name() << std::endl;
+  std::cout << typeid(std::ostream&).name() << std::endl;
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{typeid + RTTI}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Если не выключен RTTI, и тип имеет виртуальные функции, то \mintinline{cpp}|typeid| будет использовать RTTI и вернёт настоящий тип объекта:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+struct A {
+  virtual ~A() {}
+};
+
+struct B : A {};
+
+A * pa = new B;
+typeid(*pa); // вернёт typeid(B)
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{type\_index}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \mintinline{cpp}|std::type_info| -- неудобный (некопируемый) тип с реализацией, зависящей от компилятора
+\pause
+\item Чтобы было удобнее хранить такие объекты в коллекциях, есть класс-обёртка \mintinline{cpp}|std::type_index|
+\pause
+\item Фактически, он просто хранит указатель на \mintinline{cpp}|std::type_info|
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+std::set<std::type_index> set_of_types;
+set_of_types.insert(typeid(int));
+set_of_types.insert(typeid(void*));
+set_of_types.insert(typeid(std::string));
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Name mangling}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Если хотите получить нормальное имя типа (до name mangling'а, т.н. \textit{demangled name}), в библиотеке Boost есть функция, которая это делает:
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+#include <boost/core/demangle.hpp>
+#include <iostream>
+
+int main() {
+  using namespace boost::core;
+  std::cout << demangle(typeid(int).name()) << std::endl;
+  std::cout << demangle(typeid(std::string).name()) << std::endl;
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{lvalue vs rvalue}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Все выражения в C++ делятся на два типа: те, кому можно что-то присвоить, и те, кому нельзя
+\pause
+\item Те, кому можно присвоить, могут стоять \textit{слева} от оператора присваивания, поэтому называются \textbf{lvalue} (left-value)
+\pause
+\item Те, кому нельзя, могут стоять только \textit{справа} от оператора присваивания, поэтому называются \textbf{rvalue} (right-value)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{lvalue vs rvalue}
+\begin{itemize}
+\usemintedstyle{tango}
+\item lvalue:
+\pause
+\begin{itemize}
+\item Именованные переменные, разыменовывание указателя, обращение по индексу массива, оращение по ссылке
+\pause
+\item Существуют и вне выражения, в котором использованы
+\pause
+\item Имеют адрес в памяти
+\end{itemize}
+\pause
+\item rvalue:
+\pause
+\begin{itemize}
+\item Временные значения
+\pause
+\item Уничтожаются после вычисления выражения
+\end{itemize}
+\pause
+\item \textbf{NB}: точные правила много сложнее, а ещё есть \textit{xvalue}, \textit{glvalue} и \textit{prvalue}, но их знание не нужно в 99.99\% случаев
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{lvalue vs rvalue}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int i;
+
+// i - lvalue, 42 - rvalue
+i = 42;
+
+int * p = ...;
+// p - lvalue, *p - lvalue, i - lvalue
+*p = i;
+
+// p[10] - lvalue, p[2] - lvalue, p[2] + 1 - rvalue
+p[10] = p[2] + 1;
+
+//    p + 10   rvalue
+// *(p + 10)   lvalue
+//         i   lvalue
+//     i - 5   rvalue
+*(p + 10) = i - 5;
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Move семантика, rvalue-ссылки}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Часто бывают типы, объекты которых не хочется или невозможно копировать: большие динамические массивы, файлы, сетевые сокеты, обёртки других объектов, и т.п.
+\pause
+\item Даже если копирование можно реализовать, оно влечёт накладные расходы
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+vector<int> generate();
+void consume(vector<int> v);
+
+int main() {
+  // 1. Создали временный массив в возвращаемом значении
+  // 2. Скопировали временный массив в v
+  // 3. Удалили временный массив
+  vector<int> v = generate();
+
+  // Скопировали v в аргумент функции
+  consume(v);
+
+  // Удалили v
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Move семантика, rvalue-ссылки}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Хочется уметь \textit{передавать владение} объектом из одного места кода в другое
+\pause
+\item Решение: добавим новый тип ссылок -- \textit{rvalue-ссылки} \mintinline{cpp}|T&&|
+\pause
+\item Такая ссылка обычно означает временное значение, которое скоро удалится, и у которого можно забрать данные
+\pause
+\item При передаче rvalue объектов в функции, они предпочитают перегрузки, принимающие rvalue-ссылку
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Move семантика, rvalue-ссылки}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Array {
+private:
+  int * data;
+  size_t size;
+
+public:
+  Array(): data(nullptr), size(0) {}
+  Array(size_t size) : data(new int[size]), size(size) {}
+
+  // Обычное копирование
+  Array(const Array& other)
+    : data(new int[other.size]), size(other.size)
+  { /* std::copy(...) */ }
+
+  // Конструктор от rvalue-ссылки => можем "забрать себе" данные
+  Array(Array&& other)
+    : data(other.data), size(other.size)
+  {
+    // Чтобы избежать double free
+    other.data = nullptr; other.size = 0;
+  }
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Move семантика, rvalue-ссылки}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+Array a1(100);
+
+// Вызов обычного копирования
+Array a2(a1);
+
+// Вызов конструктора от rvalue объекта
+Array a3(A(200));
+Array a4(makeArray());
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Move семантика, rvalue-ссылки}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Обычно вместе с конструктором пишут оператор присваивания от rvalue:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Array {
+...
+
+  Array& operator=(Array&& other) {
+    if (this == &other) return *this;
+    delete data;
+    data = other.data;
+    size = other.size;
+    other.data = nullptr;
+    other.size = nullptr;
+    return *this;
+  }
+};
+\end{tcblisting}
+\pause
+\item В общем случае rvalue-ссылки можно использовать где угодно: как типы переменных, как параметры функций, и т.п.
+\pause
+\item Обычно они имеют смысл только в специализированных конструкторах и операторах присваивания
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Move семантика, rvalue-ссылки}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Что, если мы хотим переложить \textit{(move)} один объект в другой без копирования?
+\pause
+\item Стандартная функция \mintinline{cpp}|std::move| делает приведение типа из обычной ссылки \mintinline{cpp}|T&| в rvalue-ссылку \mintinline{cpp}|T&&|
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+Array a1;
+Array a2(100);
+
+// Вызовет Array::operator=(Array&&)
+a1 = std::move(a2);
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Move-only объекты}
+\begin{itemize}
+\usemintedstyle{tango}
+\item У класса можно удалить конструктор и оператор обычного копирования, и оставить только rvalue-версии
+\pause
+\item Такой класс нельзя скопировать, можно только переместить \textit{(move)} значение из одного объекта в другой
+\pause
+\item Такие классы называют \textit{move-only} или \textit{movable-only}
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Array {
+public:
+  // Запрет копирования
+  Array(const Array&) = delete;
+  Array& operator=(const Array& other) = delete;
+
+  // Move-методы
+  Array(Array&&);
+  Array& operator=(Array&& other);
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Move семантика, rvalue-ссылки}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Возвращаемое значение функции -- автоматически rvalue, поэтому в \mintinline{cpp}|return ...;| не нужно делать \mintinline{cpp}|std::move| (это ещё и испортит RVO/NRVO)
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+Array makeArray() {
+  Array a(100);
+  // ...
+
+  // Автоматически вызовет rvalue-конструктор, если
+  // не сработало NRVO
+  return a; 
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Move семантика, rvalue-ссылки}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \mintinline{cpp}|std::swap| на самом деле реализован через \mintinline{cpp}|std::move|, так что его безопасно использовать и для тяжело копируемых объектов (напр. \mintinline{cpp}|std::vector|):
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T>
+void swap(T& a, T& b) {
+  T temp = std::move(a);
+  a = std::move(b);
+  b = std::move(temp);
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Move семантика vs линейные/аффинные типы}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Весь механизм с использованием rvalue-ссылок называется \textit{move-семантикой}
+\pause
+\item Линейный/аффинный тип -- термин из теории типов, означающий объекты, которые нужно использовать ровно один раз/не более одного раза
+\pause
+\item Относительно новая идея для языков программрования (один из примеров -- Rust)
+\pause
+\item Должны поддерживаться на уровне компилятора
+\pause
+\item C++ не поддерживает в явном виде линейные или аффинные типы, но позволяет \textit{эмулировать} аффинные типы с помощью move-семантики
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Universal references, perfect forwarding}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Есть случай, когда \mintinline{cpp}|T&&| не означает rvalue-ссылку: если \mintinline{cpp}|T| -- шаблонный параметр функции
+\pause
+\item Тогда есть особые правила \textit{(reference collapsing rules)}, выводящие \mintinline{cpp}|T| как обычную или rvalue-ссылку
+\pause
+\item В этом случае \mintinline{cpp}|T&&| называется \textit{универсальной ссылкой (universal reference)}
+\pause
+\item Вместе со стандартной функцией \mintinline{cpp}|std::forward| позволяет принять неизвестный набор параметров и передать в другую функцию, не потеряв информацию об lvalue/rvalue
+\pause
+\item Полезно для методов-фабрик, callback'ов, обёрток, и т.п.
+\pause
+\item Сам механизм называется \textit{perfect forwarding}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Universal references, perfect forwarding}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T>
+void foo(T&& x) {
+  bar(std::forward<T>(x));
+}
+\end{tcblisting}
+\pause
+\item Часто используется вместе с variadic templates:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T, typename ... Args>
+std::shared_ptr<T> std::make_shared(Args&& ... args) {
+  return std::shared_ptr<T>(
+    new T(std::forward<Args>(args)...);
+  );
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Вывод типов}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Часто не хочется писать слишком длинный тип переменной, или его тяжело получить
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+for (std::map<std::string, std::vector<int>>::const_iterator
+  it = m.begin(); it != m.end(); ++it) { ... }
+\end{tcblisting}
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename Iterator>
+void qsort(Iterator being, Iterator end) {
+  typename std::iterator_traits<Iterator>::value_type
+    pivot = ...;
+  ...
+}
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Решение: \mintinline{cpp}|auto|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Вывод типов}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Ключевое слово \mintinline{cpp}|auto| можно использовать вместо типа переменной, тогда тип выведется автоматически из выражения, которым инициализируется переменная
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// int
+auto i = 10;
+
+// const char*
+auto str = "Hello, world!";
+
+std::map<std::string, std::vector<int>> m;
+
+// std::map<std::string, std::vector<int>>::iterator
+auto it = m.begin();
+
+// std::pair<const std::string, std::vector<int>>
+// NB: не ссылка, а копия!
+auto pivot = *it;
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Вывод типов}
+\begin{itemize}
+\usemintedstyle{tango}
+\item К \mintinline{cpp}|auto| можно добавить спецификаторы, уточняющие тип:
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int * p = ...;
+
+// int
+auto x = *p;
+
+// const int
+const auto x = *p;
+
+// int&
+auto& x = *p;
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Вывод типов}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Оператор \mintinline{cpp}|decltype(x)| подставляет вместо себя тип выражения \mintinline{cpp}|(x)|
+\pause
+\item Можно использовать везде, где ожидается тип
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// int
+decltype(10) i = 20;
+
+// float
+decltype(1 + 2.f) f = 3.14f;
+
+int* p = ...;
+
+// int*
+decltype(p + 10) q = ...;
+
+// int&
+decltype(p[10]) r = ...;
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item \textbf{NB}: есть фокусы связанные со ссылками, см. \mintinline{cpp}|decltype(auto)| и \mintinline{cpp}|decltype((x))|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Вывод типов}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \mintinline{cpp}|decltype| часто полезен в сложном шаблонном коде
+\pause
+\item \mintinline{cpp}|auto| нужно использовать аккуратно
+\pause
+\item Где-то \mintinline{cpp}|auto| упрощает чтение кода (напр. с итераторами -- мы и так знаем, что там за тип)
+\pause
+\item Где-то \mintinline{cpp}|auto| усложняет чтение кода (непонятно, какая переменная в итоге какого типа)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Range-based for loop}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Даже с итераторами, простая концепция `пройтись по всем элементам коллекции' выглядит довольно громоздко:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+for (auto it = v.begin(); it != v.end(); ++it) {
+  int x = *it;
+  // ...
+}
+\end{tcblisting}
+\pause
+\item Решение: \textit{range-based for loop}:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+for (int x : v) {
+  // ...
+}
+\end{tcblisting}
+\pause
+\item Превращается компилятором в точно такой же код с итераторами
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Range-based for loop}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Как при объявлении переменной, вместо \mintinline{cpp}|int| можно написать \mintinline{cpp}|auto| или принимать по ссылке:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+std::vector<int> v;
+
+// Локальный x - копия элемента коллекции
+for (int x : v) { ... }
+
+// Тип выведется как int
+for (auto x : v) { ... }
+
+// Локальный x - ссылка на элемент коллекции
+for (int& x : v) { ... }
+
+// Тип выведется как int&
+for (auto& x : v) { ... }
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Range-based for loop}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Если бы такой цикл использовал \textit{методы} \mintinline{cpp}|begin()| и \mintinline{cpp}|end()|, то он бы не работал с обычными массивами:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int array[5];
+for (int v : array) { ... }
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item На самом деле, вместо этого range-based for использует стандартные функции \mintinline{cpp}|std::begin()| И \mintinline{cpp}|std::end()|
+\pause
+\item Для обычных массивов они возвращают нужные указатели, а иначе вызывают метод \mintinline{cpp}|v.begin()| или \mintinline{cpp}|v.end()|
+\end{itemize}
+\end{frame}
+
+\end{document}
