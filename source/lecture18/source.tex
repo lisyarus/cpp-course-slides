@@ -266,7 +266,9 @@ class map {
   Value& at(const Key& key) {
     // Здесь const_cast безопасен: мы знаем, что объект *this
     // на самом деле неконстантный
-    return const_cast<Value&>(const_cast<map&>(*this).at(key));
+    return const_cast<Value&>(
+      const_cast<const map&>(*this).at(key)
+    );
   }
 };
 \end{tcblisting}
