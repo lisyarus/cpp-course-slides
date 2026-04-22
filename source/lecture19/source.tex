@@ -1,0 +1,874 @@
+% (c) Nikita Lisitsa, lisyarus@gmail.com, 2026
+
+\documentclass[10pt]{beamer}
+
+\usepackage[T2A]{fontenc}
+\usepackage[russian]{babel}
+\usepackage{minted}
+
+\usepackage[most]{tcolorbox}
+\tcbuselibrary{minted}
+
+\usepackage{graphicx}
+\graphicspath{ {./images/} }
+
+\usepackage{adjustbox}
+
+\usepackage{color}
+\usepackage{soul}
+\usepackage{multicol}
+\usepackage{hyperref}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc}
+
+\usetheme{metropolis}
+
+\definecolor{red}{rgb}{1,0,0}
+\definecolor{codebg}{RGB}{29,35,49}
+\setminted{fontsize=\footnotesize}
+
+\makeatletter
+\newcommand{\slideimage}[1]{
+  \begin{figure}
+    \begin{adjustbox}{width=\textwidth, totalheight=\textheight-2\baselineskip-2\baselineskip,keepaspectratio}
+      \includegraphics{#1}
+    \end{adjustbox}
+  \end{figure}
+}
+\makeatother
+
+\title{Язык программирования C++}
+\subtitle{Лекция 19: Инициализация объектов, final, tuple, regex, анонимные функции, function, type erasure, многопоточное программирование}
+\date{2026}
+\author{Никита Лисица}
+
+\setbeamertemplate{footline}[frame number]
+
+\begin{document}
+
+\frame{\titlepage}
+
+% TODO:
+% + инициализация объектов
+% + final
+% + tuple
+% + лямбды
+% + function, type erasure
+% * многопоточное программирование
+
+\begin{frame}[fragile]
+\frametitle{Инициализация объектов}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Мы знаем, что основной способ инициализировать объект в C++ -- вызвать конструктор
+\pause
+\item На самом деле, всё несколько сложнее :)
+\pause
+\item Default initialization: \mintinline{cpp}|Type x;|
+\pause
+\item Value initialization: \mintinline{cpp}|Type x{};|
+\pause
+\item Direct initialization: \mintinline{cpp}|Type x(a, b);|
+\pause
+\item Copy initialization: \mintinline{cpp}|Type x = a;|
+\pause
+\item List initialization: \mintinline{cpp}|Type x{a, b};| или \mintinline{cpp}|Type x = {a, b};|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Default vs value initialization}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Default initialization \mintinline{cpp}|Type x;| для классов вызывает конструктор без аргументов, для примитивных типов ничего не делает
+\pause
+\item \textbf{NB}: если у класса нет конструктора, компилятор сам создаст конструктор, рекурсивно вызывающий конструкторы всех полей (но для примитивных типов они тоже ничего не делают)
+\pause
+\item Value initialization \mintinline{cpp}|Type x{};| зануляет объект, потом для классов вызывает конструктор без аргументов
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Default vs value initialization}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Нет конструктора без аргументов
+// Компилятор сам создаст конструктор,
+// который ничего не будет делать
+// (trivial constructor)
+struct point {
+  int x, y;
+};
+
+// Default initialization
+// Значение остаётся не проинициализированным
+int i;
+// Поля остаются не проинициализированы
+point p;
+
+// Value initialization
+// Значение будет нулём
+int i{};
+// Значение будет нулём
+point p{};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{List initialization}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Синтаксис \mintinline{cpp}|Type x = {a, b, c};| может сделать одну из нескольких вещей:
+\pause
+\item Вызвать конструктор \mintinline{cpp}|Type| от аргументов \mintinline{cpp}|(a, b, c)|
+\pause
+\item Если у \mintinline{cpp}|Type| нет конструктора, проициниализировать все поля значениями из \mintinline{cpp}|{a, b, c}| по порядку
+\pause
+\item Если \mintinline{cpp}|Type| это массив, проинициализировать его элементы значениями из \mintinline{cpp}|{a, b, c}| по порядку
+\pause
+\item Вызвать конструктор от \mintinline{cpp}|std::initializer_list|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{List initialization: примеры}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+struct point {
+  int x, y;
+  point(int x, int y)
+    : x(x), y(y)
+  {}
+};
+
+// Вызов конструктора point::point(int, int)
+point p = {1, 2};
+\end{tcblisting}
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+struct point {
+  int x, y;
+};
+
+// Aggregate initialization
+// Эквивалентно p.x = 1, p.y = 2
+point p = {1, 2};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{List initialization: примеры}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\item При aggregate initialization можно указывать явно имена полей (\textit{designated initializers})
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+struct point {
+  int x, y;
+};
+
+point p = {.x = 1, .y = 2};
+\end{tcblisting}
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Инициализация массива
+int array[3] = {1, 2, 3};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{std::initializer\_list}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \mintinline{cpp}|std::initializer_list<T>| -- специальный шаблонный класс в стандартной библиотеке для инициализации контейнеров
+\pause
+\item Обычно ссылается на массив элементов (\mintinline{cpp}|T* data, size_t size|), где-то созданных компилятором
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Вызывает конструктор от
+// std::initializer_list<int>
+std::vector<int> vec = {1, 2, 3, 4};
+\end{tcblisting}
+\pause
+\item Все стандартные контейнеры имеют такие конструкторы
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{std::initializer\_list}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Можно создать такой конструктор и своему классу:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class my_container {
+public:
+  my_container(std::initializer_list<int> l) {
+    // l.begin(), l.end() -- указатели на начало/конец
+    // l.data(), l.size(), l.empty() -- как у std::vector
+  }
+};
+
+my_container c = {1, 2, 3, 4};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{final}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Можно запретить наследоваться от класса:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class A final {
+  // ...
+};
+
+// Ошибка компиляции: от A нельзя
+// наследоваться
+class B : public A {};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{final}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Можно запретить переопределять виртуальный метод:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class A {
+public:
+  virtual void foo();
+};
+
+class B : public A {
+public:
+  void foo() final;
+};
+
+// Ошибка компиляции: foo() нельзя
+// переопределять
+class C : public B {
+public:
+  void foo() override;
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{final}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Зачем использовать \mintinline{cpp}|final|? \pause Для оптимизации и для защиты от ошибок
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class A {
+public:
+  virtual void foo();
+};
+
+class B : public A {
+public:
+  void foo() final;
+};
+
+void call_foo(B* ptr) {
+  // Можно не использовать dynamic dispatch:
+  // мы знаем, что это именно B::foo(), так
+  // как её нельзя переопределить
+  ptr->foo();
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{std::tuple}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \mintinline{cpp}|std::tuple| -- реализация \textit{кортежа}, т.е. упорядоченного набора произвольных элементов
+\pause
+\item \textbf{NB}: во многих языках tuple -- встроенная конструкция, но в C++ она реализована в стандартной библиотеке
+\pause
+\item Это шаблонный класс, параметризующийся хранимыми типами, например \mintinline{cpp}|std::tuple<int, float, std::string>|
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+std::tuple<int, float> tup1{15, 3.14f};
+
+// Используем вывод шаблонных параметров классов
+// -> std::tuple<char, double>
+std::tuple tup2{'a', 10.0};
+
+// Получить значение по compile-time индексу:
+std::get<0>(tup1); // == 15
+std::get<1>(tup2); // == 10.0
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{std::tuple}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Основное применение \mintinline{cpp}|std::tuple| -- сохранить передать неизвестный набор значений куда-либо, обычно в шаблонном коде
+\pause
+\item Лучше не использовать \mintinline{cpp}|std::tuple| в нормальных интерфейсах:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Что такое int и float?
+std::tuple<int, float> get_time();
+
+// Лучше иметь структуры с явными
+// именами полей:
+struct time {
+  int seconds;
+  float milliseconds;
+};
+
+time get_time();
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Анонимные функции}
+\begin{itemize}
+\usemintedstyle{tango}
+\item При работе со стандартной библиотекой часто приходится написать функцию/функциональный объект: компаратор для \mintinline{cpp}|std::sort| или \mintinline{cpp}|std::map|, предикат для \mintinline{cpp}|std::find_if|, и т.п.
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+struct less_by_first_character
+{
+  bool operator()(
+    const std::string& s1,
+    const std::string& s2) {
+    return s1[0] < s2[0];
+  }
+};
+
+std::sort(lines.begin(), lines.end(),
+  less_by_first_character());
+\end{tcblisting}
+\pause
+\item Писать целый класс неудобно: много лишнего кода (т.н. \textit{boilerplate}), логика `размазана' по коду
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Анонимные функции}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Решение: \textit{анонимные функции}, они же -- \textit{лямбда-функции} или просто \textit{лямбды}
+\pause
+\item Концепция пришла из \textit{лямбда-исчисления} (Алонзо Чёрч, 1930-е) -- базис для функционального программирования
+\pause
+\item \( Y = \lambda f.(\lambda x.f(x\ x))\ (\lambda x.f(x\ x)) \)
+\pause
+\item В императивных языках лямбда-функции -- синтаксический сахар, т.е. удобный способ выразить часто повторяющуюся конструкцию
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Анонимные функции}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Общий синтаксис: \mintinline{cpp}|[список захвата](аргументы){ тело функции; }|
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+auto sqr = [](int x){ return x * x; };
+auto sum = [](int x, int y){ return x + y; };
+\end{tcblisting}
+\pause
+\item Компилятор превратит лямбды в функциональные объекты:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+struct sqr_t {
+  int operator()(int x) const { return x * x; };
+};
+
+struct sum_t {
+  int operator()(int x, int y) const { return x + y; };
+};
+
+auto sqr = sqr_t{};
+auto sum = sum_t{};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Анонимные функции}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Их удобно использовать как компараторы/предикаты:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Отсортировать по возрастанию модуля
+std::sort(array.begin(), array.end(),
+  [](int x, int y){ abs(x) < abs(y); });
+
+// Найти элемент, кратный 8
+std::find_if(array.begin(), array.end(),
+  [](int x){ return (x % 8) == 0; });
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Capture list}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Удобство функциональных объектов в том, что они могут \textit{хранить данные} и использовать их в своём \mintinline{cpp}|operator()|:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+struct less_than_ref {
+  int ref;
+  bool operator()(int x) const { return x < ref; }
+};
+
+std::partition(array.begin(), array.end(),
+  less_than_ref{15});
+\end{tcblisting}
+\pause
+\item У лямбд для этого есть \textit{список захвата (capture list)}:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int ref = 15;
+std::partition(array.begin(), array.end(),
+  [ref](int x){ return x < ref; });
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Capture list}
+\begin{itemize}
+\usemintedstyle{tango}
+\item `Захватить' переменную в список захвата можно как по значению, так и по ссылке
+\pause
+\item Захват по значению \mintinline{cpp}|[x](...){...}| создаёт копию переменной внутри лямбды
+\pause
+\item Захват по ссылке \mintinline{cpp}|[&x](...){...}| создаёт ссылку на переменную внутри лямбды
+\pause
+\item \textbf{NB}: в захвате по ссылке выражение \mintinline{cpp}|&x| не означает указатель на переменную!
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int count = 0;
+int ref = 15;
+std::partition(begin, end, [&count, ref](int x){
+  ++count;
+  return x < ref;
+});
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Capture list}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Эквивалентный код без лямбд:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+struct lambda_t {
+  int& count;
+  int ref;
+
+  bool operator()(int x) const {
+    ++count;
+    return x < ref;
+  }
+};
+
+int count = 0;
+int ref = 15;
+std::partition(begin, end, lambda_t{count, ref});
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Capture list}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Элементы списка захвата не обязаны быть существующими переменными, но тогда их надо руками проинициализировать:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int ref = 10;
+auto func = [y = ref * 2](int x){ return x < y; };
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item По умолчанию, сгенерированный \mintinline{cpp}|operator()| помечен как \mintinline{cpp}|const| и не может менять значения в списке захвата
+\pause
+\item Это можно изменить ключевым словом \mintinline{cpp}|mutable|:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+auto func = [count = 0](int x) mutable {
+  ++count;
+  return x < 15;
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Capture list}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Можно захватить всё, что используется в лямбде, автоматически по ссылке \mintinline{cpp}|[&]| или по значению \mintinline{cpp}|[=]|:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int ref = 10;
+
+// Автоматический захват по значению
+auto func1 = [=](int x){ return x < ref; };
+
+// Автоматический захват по ссылке
+auto func2 = [&](int x){ return x < ref; };
+\end{tcblisting}
+\pause
+\item \textbf{NB}: Лучше не пользоваться автоматическим захватом, тяжело отследить битые ссылки
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Анонимные функции: возвращаемое значение}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Тип возвращаемого значения у лямбд выводится автоматически
+\pause
+\item Можно указать его явно, чтобы избежать ошибок или неявных преобразований:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+auto sqr = [](int x) -> int {
+  return x * x;
+};
+
+auto cmp = [](int x, int y) -> bool {
+  return abs(x) < abs(y);
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Анонимные функции: применение}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Лямбды можно использовать не только как предикаты или компараторы
+\pause
+\item Настройка поведения сложного шаблонного кода
+\pause
+\item Callback'и (обработчики событий) в асинхронном коде (сеть, UI)
+\pause
+\item Библиотека \nolinkurl{Boost.Hana} реализует метапрограммрование на лямбдах
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{std::function}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Если мы хотим куда-то принимать функцию или лямбду, у нас есть два варианта:
+\pause
+\begin{itemize}
+\item Принимать указатель на функцию -- тогда нельзя передать лямбду
+\pause
+\item Сделать код шаблонным -- тогда его придётся положить в заголовочный файл, это замедлит компиляцию, и его нельзя положить в динамическую библиотеку
+\end{itemize}
+\pause
+\item Решение: \mintinline{cpp}|std::function|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{std::function}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \mintinline{cpp}|std::function<R(Args...)>| -- специальный шаблонный класс, позволяющий хранить любой объект, который можно вызвать от списка аргументов \mintinline{cpp}|(Args...)|, и который возвращает тип \mintinline{cpp}|R|
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+std::function<int(int)> sqr = [](int x){
+  return x * x;
+};
+
+std::function<int(int, int)> sum = [](int x, int y){
+  return x + y;
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{std::function}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \mintinline{cpp}|std::function| с конкретными параметрами -- конкретный тип, его можно использовать в нешаблонных интерфейсах классов и библиотек
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class UIController {
+public:
+  virtual onKeyDown(std::function<void(char)> callback) = 0;
+  virtual onKeyUp  (std::function<void(char)> callback) = 0;
+
+  virtual onMouseMove
+    (std::function<void(int, int)> callback) = 0;
+
+  virtual ~UIController() {}
+};
+
+controller->onKeyDown([](char key){
+  if (key == 'W') {
+    moveForward();
+  }
+});
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{std::function: реализация}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename R, typename ... Args>
+struct function_base {
+  virtual R call(Args...) = 0;
+};
+
+template <typename R, typename ... Args, typename Object>
+struct function_impl : base<R, Args...> {
+  Object object;
+  R call(Args... args) { return object(args...); }
+};
+
+template <typename R, typename ... Args>
+struct function {
+  template <typename Object>
+  function(Object object)
+    : impl(new function_impl<R, Args..., Object>(object))
+  {}
+
+  R operator()(Args... args) { return impl->call(args); }
+
+private:
+  function_base<R, Args...>* impl;
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Type erasure}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \mintinline{cpp}|std::function| -- обёртка для любого объекта, обладающего некоторым интерфейсом (\mintinline{cpp}|operator()| с нужными типами)
+\pause
+\item Реализация имспользует настоящий интерфейс с виртуальными функциями
+\pause
+\item Оборачивание конкретного объекта создаёт реализацию этого интерфейса, параметризующуюся типом хранимого объекта
+\pause
+\item Такой приём называется \textit{type erasure} и часто используется чтобы разменять производительность на скорость компиляции и удобство архитектуры
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Процессы vs потоки}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \textit{Процесс} -- отдельно запущенная программа со своим адресным пространством
+\pause
+\item \textit{Поток} -- независимо выполняющаяся часть программы, использующая её адресное пространство
+\pause
+\item Разные \textit{процессы} не могут просто так общаться через память (для этого нужны сокеты/файлы/shared memory)
+\pause
+\item Один \textit{процесс} может иметь несколько \textit{потоков}, и они все имеют общую память
+\pause
+\item Единица исполнения кода -- это \textit{поток}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Виды многозадачности}
+\begin{itemize}
+\usemintedstyle{tango}
+\item В общем случае, потоков может быть больше, чем ядер CPU
+\pause
+\item \textit{Вытесняющая многозадачность} -- ядро операционной системы выделяет кванты времени каждому потоку и переключается между ними на каждом ядре CPU
+\pause
+\item \textit{Кооперативная многозадачность} -- выполняющиеся потоки сами решают, когда отдать управление другому потоку
+\pause
+\item В современных ОС реализована \textit{вытесняющая многозадачность} на уровне потоков всех процессов системы
+\pause
+\item Современные библиотеки работы с сетью (\nolinkurl{node.js, asyncio}) асинхронные и используют \textit{кооперативную многозадачность}, часто с помощью \textit{корутин}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Потоки}
+\begin{itemize}
+\usemintedstyle{tango}
+\item При создании потока нужно
+\pause
+\begin{itemize}
+\item Выделить место под его стек
+\pause
+\item Выделить место под \mintinline{cpp}|thread_local| переменные
+\pause
+\item Проинициализировать информацию о потоке внутри ОС
+\end{itemize}
+\pause
+\item При переключении потоков (т.н. \textit{переключение контекста, context switch}) нужно
+\pause
+\begin{itemize}
+\item Запомнить состояние всех регистров потока
+\pause
+\item Загрузить состояние всех регистров нового потока
+\pause
+\item Обновить MMU в CPU для нового процесса
+\end{itemize}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Потоки}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \(\Longrightarrow\) Создание и переключение потоков -- дорогая операция
+\pause
+\item Перед использованием потоков нужно подумать, не будут ли накладные расходы выше, чем выигрыш от параллельности
+\pause
+\item Типичное применение:
+\pause
+\begin{itemize}
+\item Распараллеливание алгоритмов (умножение матриц, сортировка)
+\pause
+\item Real-time приложения (UI в одном потоке, сложные операции в другом)
+\pause
+\item Сетевые приложения (несколько потоков, каждый обрабатывает свой запрос)
+\end{itemize}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Потоки в C++}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Стандартный класс \mintinline{cpp}|std::thread| реализует отдельный поток выполнения
+\pause
+\item Конструктор создаёт и сразу запускает поток
+\pause
+\item Метод \mintinline{cpp}|join()| ждёт, пока поток закончит выполняться
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+void my_thread_function();
+
+std::thread th(&my_thread_function);
+
+// Можем выполнять другие действия, пока работает поток
+...
+
+th.join()
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item \textbf{NB}: с потоком, вызвавшим функцию \mintinline{cpp}|main|, ничего сделать нельзя!
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Потоки в C++}
+\begin{itemize}
+\usemintedstyle{tango}
+\item В конструктор потока можно передать и лямбду
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Лямбда без аргументов - можно опустить круглые скобки
+std::thread th([]{
+  // Тело функции, которая будет исполняться
+  // в отдельном потоке
+  ...
+});
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item В конструктор потока можно передать аргументы для вызываемой функции:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+void thread_func(int id);
+
+// Создаст поток и вызовет в нём
+// thread_func(10)
+std::thread th(&thread_func, 10);
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Потоки в C++}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Пример: параллельное сложение двух векторов
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+void sum(const int* src1, const int* src2,
+  int* dst, int count)
+{
+  for (int i = 0; i < count; ++i)
+    dst[i] = src1[i] + src2[i];
+}
+
+void parallel_sum(const int* src1, const int* src2,
+  int* dst, int count)
+{
+  // Тут хорошо бы округлить до размера кеш-линии,
+  // см. std::hardware_destructive_interference_size
+  int half = count / 2;
+  std::thread th1(&sum, src1, src2, dst, half);
+  std::thread th2(&sum, src1 + half, src2 + half,
+    dst + half, count - half);
+  th1.join();
+  th2.join();
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Потоки в C++}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \textbf{NB}: начиная с C++17 можно такие вещи не реализовывать руками:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+void parallel_sum(const int* src1, const int* src2,
+  int* dst, int count)
+{
+  // Вместо лямбды можно std::plus<int>{}
+  std::transform(std::execution::par, src1, src1 + count,
+    src2, dst, [](int x, int y){ return x + y; });
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\end{document}
