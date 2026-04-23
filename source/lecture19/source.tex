@@ -183,6 +183,40 @@ int array[3] = {1, 2, 3};
 \end{frame}
 
 \begin{frame}[fragile]
+\frametitle{Инициализация полей значением по умолчанию}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\item Поля структуры/класса можно инициализировать прямо при объявлении значением по умолчанию:
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class Array {
+private:
+  int* data = nullptr;
+  size_t size = 0;
+};
+\end{tcblisting}
+\pause
+\item Эта инициализация автоматически встроится в любой конструктор, который явно не инициализирует эти поля сам
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Инициализация полей значением по умолчанию}
+\begin{itemize}
+\item Поля с таким значением по умолчанию можно не инициализировать при list/designated initialization:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+struct point {
+  int id = 0;
+  int x, y;
+};
+
+// .id = 0 будет автоматически
+point p{.x = 1, .y = 2};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
 \frametitle{std::initializer\_list}
 \begin{itemize}
 \usemintedstyle{tango}
@@ -307,7 +341,7 @@ void call_foo(B* ptr) {
 \begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
 std::tuple<int, float> tup1{15, 3.14f};
 
-// Используем вывод шаблонных параметров классов
+// Используем вывод шаблонных параметров классов (CTAD)
 // -> std::tuple<char, double>
 std::tuple tup2{'a', 10.0};
 
@@ -419,7 +453,7 @@ auto sum = sum_t{};
 \begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
 // Отсортировать по возрастанию модуля
 std::sort(array.begin(), array.end(),
-  [](int x, int y){ abs(x) < abs(y); });
+  [](int x, int y){ return abs(x) < abs(y); });
 
 // Найти элемент, кратный 8
 std::find_if(array.begin(), array.end(),
@@ -840,7 +874,7 @@ void sum(const int* src1, const int* src2,
 void parallel_sum(const int* src1, const int* src2,
   int* dst, int count)
 {
-  // Тут хорошо бы округлить до размера кеш-линии,
+  // Тут хорошо бы округлить указатель до размера кеш-линии,
   // см. std::hardware_destructive_interference_size
   int half = count / 2;
   std::thread th1(&sum, src1, src2, dst, half);
