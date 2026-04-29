@@ -1,0 +1,723 @@
+% (c) Nikita Lisitsa, lisyarus@gmail.com, 2026
+
+\documentclass[10pt]{beamer}
+
+\usepackage[T2A]{fontenc}
+\usepackage[russian]{babel}
+\usepackage{minted}
+
+\usepackage[most]{tcolorbox}
+\tcbuselibrary{minted}
+
+\usepackage{graphicx}
+\graphicspath{ {./images/} }
+
+\usepackage{adjustbox}
+
+\usepackage{color}
+\usepackage{soul}
+\usepackage{multicol}
+\usepackage{hyperref}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc}
+
+\usetheme{metropolis}
+
+\definecolor{red}{rgb}{1,0,0}
+\definecolor{codebg}{RGB}{29,35,49}
+\setminted{fontsize=\footnotesize}
+
+\makeatletter
+\newcommand{\slideimage}[1]{
+  \begin{figure}
+    \begin{adjustbox}{width=\textwidth, totalheight=\textheight-2\baselineskip-2\baselineskip,keepaspectratio}
+      \includegraphics{#1}
+    \end{adjustbox}
+  \end{figure}
+}
+\makeatother
+
+\title{Язык программирования C++}
+\subtitle{Лекция 20: Race condition, mutex, atomic, регулярные выражения, static\_assert, compile-time вычисления, variadic templates}
+\date{2026}
+\author{Никита Лисица}
+
+\setbeamertemplate{footline}[frame number]
+
+\begin{document}
+
+\frame{\titlepage}
+
+\begin{frame}[fragile]
+\frametitle{Race condition}
+\begin{itemize}
+\usemintedstyle{tango}
+\item С точки зрения потока/процесса, переключение контекста может произойти в произвольный момент времени (в том числе в середине выполнения какой-нибудь операции)
+\pause
+\item Как правило, мы не можем явно управлять распределением потоков по ядрам CPU, порядком их выполнения, и т.д.
+\pause
+\item Если результат выполнения программы зависит от порядка, в котором выполнялись инструкции в разных потоках, говорят о \textit{состоянии гонки (race condition)}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Race condition: пример}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+#include <thread>
+#include <iostream>
+
+void hello() {
+  std::cout << "Hello from " << std::this_thread::get_id()
+    << std::endl;
+}
+
+int main() {
+  std::vector<std::thread> threads;
+  for (int i = 0; i < 5; ++i)
+    threads.emplace_back(&hello);
+  for (auto & thread : threads)
+    thread.join();
+}
+\end{tcblisting}
+\pause
+\item Что выведется на экран?
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Race condition: пример}
+\begin{itemize}
+\item Может быть
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+Hello from 140276650997504
+Hello from 140276667782912
+Hello from 140276659390208
+Hello from 140276642604800
+Hello from 140276676175616
+\end{tcblisting}
+\pause
+\item А может быть
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+Hello from thread Hello from thread Hello from
+thread 140276650997504Hello
+from thread 140276659390208Hello from thread
+140276667782912
+140276676175616
+140276642604800
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Race condition: пример}
+\begin{itemize}
+\item Один поток добавляет элементы в связный список, второй поток итерируется по нему
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+auto next = curr.next;
+curr.next = new_node;
+// Поток #1 остановился здесь
+new_node.next = next;
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Во втором потоке сломается итерация по списку (например, если \mintinline{cpp}|new_node.next| было не проинициализировано)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Race condition: пример}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int x = 0;
+
+// Поток #1
+while (!stopped) {
+  ++x;
+}
+
+// Поток #2
+while (!stopped) {
+  if (x % 2 == 0) {
+    std::cout << x;
+  }
+}
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Может быть выведено нечётное число
+\pause
+\item Поток \#2 выполнил проверку и зашёл внутрь \mintinline{cpp}|if|, затем передал управление потоку \#1
+\pause
+\item Поток \#1 изменил \mintinline{cpp}|x| на нечётное значение и передал управление потоку \#2
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Гонка данных (data race)}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Когда один поток пишет в некоторую память, и одновременно один или несколько потоков эту память читают, говорят о \textit{гонке данных (data race)}
+\pause
+\item В общем случае результат гонки данных -- неопределённое поведение
+\pause
+\item На некоторых архитектурах некоторые инструкции атомарны (напр. чтение или запись до 8 байт по выровненному адресу на x86-64)
+\pause
+\item Как правило, операции в языке программирования компилируются в \textit{несколько} инструкций CPU (\(\Longrightarrow\) не являются атомарными)
+\pause
+\item Оптимизации компилятора могут перемешивать инструкции, меняя поведение в многопоточном случае
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Гонка данных: пример}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int x = 0;
+
+std::vector<std::thread> threads;
+for (int i = 0; i < 5; ++i)
+  threads.emplace_back([&x]{
+    for (int i = 0; i < 1000; ++i)
+      ++x;
+  });
+
+for (auto & thread : threads)
+  thread.join();
+
+std::cout << x << std::endl;
+\end{tcblisting}
+\pause
+\item Что выведется на экран?
+\pause
+\item В общем случае -- что угодно, на x86-64 -- что угодно от 0 до 5000
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Гонка данных: пример}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \mintinline{cpp}|++x| это, на самом деле, три операции:
+\pause
+\begin{itemize}
+\item Прочитать \mintinline{cpp}|x| из памяти в регистр
+\pause
+\item Инкрементировать регистр
+\pause
+\item Записать значение регистра обратно в память
+\end{itemize}
+\pause
+\item Возможное исполнение:
+\pause
+\begin{itemize}
+\item Поток \#1 прочитал \mintinline{cpp}|x|
+\pause
+\item Поток \#2 прочитал \mintinline{cpp}|x|
+\pause
+\item Оба потока инкрементировали регистр
+\pause
+\item Поток \#1 записал \mintinline{cpp}|x|
+\pause
+\item Поток \#2 записал \mintinline{cpp}|x|
+\pause
+\item \(\Longrightarrow\) \mintinline{cpp}|x| изменился с 0 на 1
+\end{itemize}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Мьютекс}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \textit{Мьютекс (mutex, от англ. mutual exclusion)} -- примитив синхронизации, ограничивающий доступ потоков к данным или коду
+\pause
+\item Часть кода, защищённая мьютексом (т.н. \textit{критическая секция}) может одновременно выполняться \textbf{только одним потоком} (остальные будут \textbf{ждать} своей очереди)
+\pause
+\item В стандартной библиотеке есть реализация мьютекса \mintinline{cpp}|std::mutex|
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+std::mutex mutex;
+int x = 0;
+
+// ...
+
+threads.emplace_back([&x]{
+  for (int i = 0; i < 1000; ++i) {
+    // Код между lock и unlock - критическая секция
+    mutex.lock();
+    ++x;
+    mutex.unlock();
+  }
+});
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Мьютекс: lock\_guard}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Почти всегда \mintinline{cpp}|mutex.lock()| и \mintinline{cpp}|mutex.unlock()| идут в паре
+\pause
+\item Чтобы не забыть сделать \mintinline{cpp}|mutex.unlock()| (иначе потоки могут зависнуть!), есть \mintinline{cpp}|std::lock_guard|
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Сделает lock() в конструкторе и unlock() в деструкторе
+std::lock_guard<std::mutex> lock{mutex};
+++x;
+\end{tcblisting}
+\pause
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Можно воспользоваться CTAD
+std::lock_guard lock{mutex};
+++x;
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Мьютекс: lock\_guard}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Можно отдать в \mintinline{cpp}|std::lock_guard| уже заблокированный мьютекс:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+mutex.lock();
+// Сделает unlock() в деструкторе
+std::lock_guard lock{mutex, std::adapt_lock};
+++x;
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Мьютекс: unique\_lock}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Если может потребоваться сбросить состояние заблокированности до деструктора, или переместить (move) владение блокировкой, есть \mintinline{cpp}|std::unique_lock|
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+std::std::unique_lock lock{mutex};
+++x;
+if (x > 10) {
+  // Можно вызвать unlock() самим
+  lock.unlock();
+  return;
+}
+++x;
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Мьютекс: unique\_lock}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+std::std::unique_lock lock{mutex, std::defer_lock};
+// После этого мьютекс будет заблокирован
+lock.lock();
+\end{tcblisting}
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+std::std::unique_lock lock{mutex, std::try_lock};
+if (lock.owns_lock()) {
+  // Получилось заблокировать, можно войти
+  // в критическую секцию
+} else {
+  // Не получилось заблокировать - другой поток
+  // уже находится в критической секции
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Взаимная блокировка (deadlock)}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{multicols}{2}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Поток #1
+mutex1.lock();
+mutex2.lock();
+\end{tcblisting}
+\columnbreak
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Поток #2
+mutex2.lock();
+mutex1.lock();
+\end{tcblisting}
+\end{multicols}
+\pause
+\usemintedstyle{tango}
+\item Поток \#1 заблокировал \mintinline{cpp}|mutex1|, а поток \#2 заблокировал \mintinline{cpp}|mutex2|
+\pause
+\item Теперь поток \#1 ждёт разблокировки \mintinline{cpp}|mutex2|, а поток \#2 ждёт разблокировки \mintinline{cpp}|mutex1|
+\pause
+\item \(\Longrightarrow\) мьютексы никогда не будут разблокированы, потоки зависнут
+\pause
+\item Эта ситуация называется \textit{взаимной блокировкой (deadlock)}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Взаимная блокировка (deadlock)}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Существуют алгоритмы предотвращения взаимной блокировки \textit{(deadlock avoidance)}
+\pause
+\item В стандартной библиотеке есть функция \mintinline{cpp}|std::lock(mutex1, mutex2, ...)|, реализующая такой алгоритм
+\pause
+\item Есть RAII-обёртка \mintinline{cpp}|std::scoped_lock|, делающая то же самое (и разблокировку в деструкторе)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Предотвращение взаимной блокировки}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+std::lock(mutex1, mutex2);
+std::lock_guard lock1(mutex1, std::adopt_lock);
+std::lock_guard lock1(mutex2, std::adopt_lock);
+// ...
+\end{tcblisting}
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+std::unique_lock lock1(mutex1, std::defer_lock);
+std::unique_lock lock1(mutex2, std::defer_lock);
+std::lock(mutex1, mutex2);
+// ...
+\end{tcblisting}
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+std::scoped_lock lock(mutex1, mutex2);
+// ...
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Рекурсивный мьютекс}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Обычный мьютекс нельзя заблокировать дважды одним и тем же потоком (undefined behavior, в некоторых реализациях -- \mintinline{cpp}|std::system_error|)
+\pause
+\item Для такого существует рекурсивный/reentrant мьютекс:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+std::recursive_mutex mutex;
+
+void foo() {
+  std::lock_guard lock(mutex);
+  ...
+  if (...) {
+    foo();
+  }
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Атомарные типы (atomics)}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Атомарные операции -- операции, которые выполняются целиком, не прерываясь и не перемешиваясь с другими операциями (в т.ч. других потоков)
+\pause
+\item Даже если архитектура CPU (напр. x86-64) гарантирует атомарность чтения/записи в каких-то случаях, компилятор может перемешать эти инструкции с другими, что повлияет на логику программы
+\pause
+\item В стандартной библиотеке есть шаблон \mintinline{cpp}|std::atomic|, реализующий атомарные операции
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+std::atomic<int> count = 0;
+
+// Из нескольких потоков
+for (int i = 0; i < 1000; ++i)
+  // Атомарно прибавить 1
+  count.fetch_add(1);
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Атомарные типы (atomics)}
+\begin{itemize}
+\usemintedstyle{tango}
+\item В \mintinline{cpp}|std::atomic| можно завернуть любой примитивный тип, указатель, и простые структуры
+\pause
+\item \mintinline{cpp}|load()| -- атомарно прочитать значение (возвращает копию)
+\pause
+\item \mintinline{cpp}|store(value)| -- атомарно записать значение
+\pause
+\item \mintinline{cpp}|exchange(value)| -- атомарно записать новое значение и вернуть старое
+\pause
+\item \mintinline{cpp}|compare_exchange_weak/strong(value)| -- реализация compare-and-swap (CAS)
+\pause
+\item Есть особые методы для числовых типов: \mintinline{cpp}|fetch_add(value)|, \mintinline{cpp}|fetch_sub(value)|, \mintinline{cpp}|fetch_min(value)|, \mintinline{cpp}|fetch_max(value)|, \mintinline{cpp}|fetch_and(value)|, \mintinline{cpp}|fetch_or(value)|, \mintinline{cpp}|fetch_xor(value)|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Атомарные типы (atomics)}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \mintinline{cpp}|std::atomic| может быть реализован через мьютекс, а может -- через специфичные для платформы механизмы
+\pause
+\item Проверить, что \mintinline{cpp}|atomic| не использует мьютексы: \mintinline{cpp}|is_lock_free()|, \mintinline{cpp}|is_always_lock_free|
+\pause
+\item \textbf{NB:} Мьютексы можно реализовать через \mintinline{cpp}|atomic| используя CAS (т.н. \textit{spinlock})
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Мьютексы, atomics, и оптимизации}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Мьютексы/атомики не только исполняют специфичные инструкции процессора, но и говорят компилятору о том, что определённые операции нельзя перемешивать
+\pause
+\item Почти все функции работы с атомиками принимают аргумент \textit{memory order}, описывающий, какие именно гарантии нам нужны от этой операции (по умолчанию -- \textit{sequential consistency}, самая сильная гарантия)
+\pause
+\item Есть древний совет использовать \mintinline{cpp}|volatile| переменные в качестве атомиков -- в современных CPU И компиляторах это \textbf{не работает}!
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Регулярные выражения (regex)}
+\begin{itemize}
+\usemintedstyle{tango}
+\item В стандартной библиотеке есть реализация регулярных выражений -- класс \mintinline{cpp}|std::regex|
+\pause
+\item Поддерживает много вариаций регулярных выражений (ECMAScript, basic POSIX, extended POSIX, ...)
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+std::regex number_regex("(\d)+");
+std::smatch match;
+std::regex_search("1234", match, number_regex);
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item \mintinline{cpp}|std::regex_match| -- проверка на соответствие регулярному выражению
+\pause
+\item \mintinline{cpp}|std::regex_search| -- поиск подстроки по регулярному выражению
+\pause
+\item \mintinline{cpp}|std::regex_replace| -- замена по регулярному выражению
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{static\_assert}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Позволяет сделать compile-time проверку некоторого условия:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Текст ошибки опционален
+static_assert(sizeof(int) == 4, "unsupported platform");
+
+struct mesh_vertex {
+  vec3f position;
+  vec3f normal;
+  vec2f texcoord;
+};
+
+static_assert(sizeof(mesh_vertex) == 32);
+
+static_assert(std::atomic<int>::is_always_lock_free);
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Compile-time вычисления}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Шаблоны в C++ можно рассматривать как функциональный язык программирования, выполняющийся в процессе компиляции (compile-time)
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <unsigned int N>
+struct factorial {
+  static const auto value = N * factorial<N - 1>::value;
+};
+
+template <>
+struct factorial<0> {
+  static const unsigned int value = 1;
+};
+
+auto x = factorial<5>::value; // x = 120
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Compile-time вычисления}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Односвязный список типов:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+struct empty{};
+
+template <typename Head, typename Tail>
+struct append {
+  using head = Head;
+  using tail = Tail;
+};
+
+template <typename List>
+struct list_length;
+
+template <>
+struct list_length<empty> {
+  static const size_t value = 0;
+};
+
+template <typename Head, typename Tail>
+struct list_length<append<Head, Tail>> {
+  static const size_t value = 1 + list_length<Tail>::value;
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Compile-time вычисления: constexpr}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Ключевое слово \mintinline{cpp}|constexpr| означает, что переменная или функция \textit{могут} быть вычислены в compile-time
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+constexpr unsigned int factorial(unsigned int n) {
+  if (n == 0)
+    return 1;
+  return n * factorial(n - 1);
+}
+\end{tcblisting}
+\pause
+\item На такую функцию есть ограничения (не может быть виртуальной, не может иметь побочные эффекты, и т.п.)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{const, constexpr, consteval, constinit}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \mintinline{cpp}|constexpr| переменная будет автоматически \mintinline{cpp}|const|
+\pause
+\item \mintinline{cpp}|consteval| функция \textbf{всегда} вычисляется в compile-time
+\pause
+\item \mintinline{cpp}|constinit| переменная инициализируется в compile-time (но не будет автоматически \mintinline{cpp}|const|)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Variadic templates}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Шаблон (функции или класса), параметризующийся \textit{произвольным списком типов (произвольной длины)}
+\pause
+\item Синтаксис: \mintinline{cpp}|<typename ... Args>|
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename ... Args>
+void print(Args ... args);
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item К типам можно добавить уточнения (ссылки, \mintinline{cpp}|const|):
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename ... Args>
+void print(const Args& ... args);
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Variadic templates}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Сам набор аргументов \mintinline{cpp}|args| называется \textit{variadic pack}
+\pause
+\item Выражение \mintinline{cpp}|args...| позволяет `раскрыть' variadic pack и передать куда-нибудь (напр. в функцию)
+\pause
+\item \mintinline{cpp}|sizeof...(Args)| -- количество элементов в наборе
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Variadic templates}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Два способа использовать variadic pack: рекурсия и fold expressions
+\pause
+\item Пример рекурсии:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Типичный подход: первый аргумент отдельно,
+// рекурсия по оставшимся аргументам
+template <typename T, typename ... Args>
+void print(const T& first, const Args& ... args) {
+  std::cout << first;
+  print(args...);
+}
+
+// База рекурсии
+void print() {}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Fold expressions}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Правая свёртка: выражение \mintinline{cpp}|(args + ...)| превращается в \mintinline{cpp}|arg0 + (arg1 + (arg2 + ...))|
+\pause
+\item Левая свёртка: выражение \mintinline{cpp}|(... + args)| превращается в \mintinline{cpp}|((arg0 + arg1) + arg2) + ...|
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename ... Args>
+auto sum(const Args& ... args) {
+  return (args + ...);
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Fold expressions}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Свёртку можно использовать почти со всеми операторами, включая оператор запятая:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename ... Args>
+void print(const Args& ... args) {
+  (std::cout << args, ...);
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\end{document}
