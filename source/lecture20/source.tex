@@ -102,9 +102,9 @@ Hello from 140276676175616
 \item А может быть
 \usemintedstyle{lightbulb}
 \begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
-Hello from thread Hello from thread Hello from
-thread 140276650997504Hello
-from thread 140276659390208Hello from thread
+Hello from Hello from Hello from 
+140276650997504Hello
+from 140276659390208Hello from 
 140276667782912
 140276676175616
 140276642604800
@@ -197,7 +197,7 @@ std::cout << x << std::endl;
 \pause
 \item Что выведется на экран?
 \pause
-\item В общем случае -- что угодно, на x86-64 -- что угодно от 0 до 5000
+\item В общем случае -- что угодно (UB), на x86-64 -- что угодно от 1000 до 5000
 \end{itemize}
 \end{frame}
 
@@ -242,6 +242,12 @@ std::cout << x << std::endl;
 \item Часть кода, защищённая мьютексом (т.н. \textit{критическая секция}) может одновременно выполняться \textbf{только одним потоком} (остальные будут \textbf{ждать} своей очереди)
 \pause
 \item В стандартной библиотеке есть реализация мьютекса \mintinline{cpp}|std::mutex|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Мьютекс}
+\begin{itemize}
 \usemintedstyle{lightbulb}
 \begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
 std::mutex mutex;
@@ -306,7 +312,7 @@ std::lock_guard lock{mutex, std::adapt_lock};
 \pause
 \usemintedstyle{lightbulb}
 \begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
-std::std::unique_lock lock{mutex};
+std::unique_lock lock{mutex};
 ++x;
 if (x > 10) {
   // Можно вызвать unlock() самим
@@ -323,14 +329,14 @@ if (x > 10) {
 \begin{itemize}
 \usemintedstyle{lightbulb}
 \begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
-std::std::unique_lock lock{mutex, std::defer_lock};
+std::unique_lock lock{mutex, std::defer_lock};
 // После этого мьютекс будет заблокирован
 lock.lock();
 \end{tcblisting}
 \pause
 \usemintedstyle{lightbulb}
 \begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
-std::std::unique_lock lock{mutex, std::try_lock};
+std::unique_lock lock{mutex, std::try_lock};
 if (lock.owns_lock()) {
   // Получилось заблокировать, можно войти
   // в критическую секцию
@@ -390,15 +396,15 @@ mutex1.lock();
 \begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
 std::lock(mutex1, mutex2);
 std::lock_guard lock1(mutex1, std::adopt_lock);
-std::lock_guard lock1(mutex2, std::adopt_lock);
+std::lock_guard lock2(mutex2, std::adopt_lock);
 // ...
 \end{tcblisting}
 \pause
 \usemintedstyle{lightbulb}
 \begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
 std::unique_lock lock1(mutex1, std::defer_lock);
-std::unique_lock lock1(mutex2, std::defer_lock);
-std::lock(mutex1, mutex2);
+std::unique_lock lock2(mutex2, std::defer_lock);
+std::lock(lock1, lock2);
 // ...
 \end{tcblisting}
 \pause
@@ -695,11 +701,27 @@ void print() {}
 \pause
 \item Левая свёртка: выражение \mintinline{cpp}|(... + args)| превращается в \mintinline{cpp}|((arg0 + arg1) + arg2) + ...|
 \pause
+\item Правая свёртка с начальным значением: выражение \mintinline{cpp}|(args + ... + init)| превращается в \mintinline{cpp}|arg0 + (arg1 + (arg2 + ... + (argn + init)))|
+\pause
+\item Левая свёртка с начальным значением: выражение \mintinline{cpp}|(init ... + args)| превращается в \mintinline{cpp}|(((init + arg0) + arg1) + arg2) + ...|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Fold expressions}
+\begin{itemize}
 \usemintedstyle{lightbulb}
 \begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
 template <typename ... Args>
 auto sum(const Args& ... args) {
   return (args + ...);
+}
+\end{tcblisting}
+\pause
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename ... Args>
+void print(const Args& ... args) {
+  (std::cout << ... << args);
 }
 \end{tcblisting}
 \end{itemize}
@@ -709,12 +731,18 @@ auto sum(const Args& ... args) {
 \frametitle{Fold expressions}
 \begin{itemize}
 \usemintedstyle{tango}
-\item Свёртку можно использовать почти со всеми операторами, включая оператор запятая:
+\item Свёртку можно использовать почти со всеми операторами, включая оператор запятая -- это позволяет реализовать `цикл по variadic pack':
 \usemintedstyle{lightbulb}
 \begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
 template <typename ... Args>
 void print(const Args& ... args) {
   (std::cout << args, ...);
+}
+\end{tcblisting}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename ... Args>
+void clear_all(const Args& ... args) {
+  (args.clear(), ...);
 }
 \end{tcblisting}
 \end{itemize}
