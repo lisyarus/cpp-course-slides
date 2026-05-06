@@ -1,0 +1,604 @@
+% (c) Nikita Lisitsa, lisyarus@gmail.com, 2026
+
+\documentclass[10pt]{beamer}
+
+\usepackage[T2A]{fontenc}
+\usepackage[russian]{babel}
+\usepackage{minted}
+
+\usepackage[most]{tcolorbox}
+\tcbuselibrary{minted}
+
+\usepackage{graphicx}
+\graphicspath{ {./images/} }
+
+\usepackage{adjustbox}
+
+\usepackage{color}
+\usepackage{soul}
+\usepackage{multicol}
+\usepackage{hyperref}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc}
+
+\usetheme{metropolis}
+
+\definecolor{red}{rgb}{1,0,0}
+\definecolor{codebg}{RGB}{29,35,49}
+\setminted{fontsize=\footnotesize}
+
+\makeatletter
+\newcommand{\slideimage}[1]{
+  \begin{figure}
+    \begin{adjustbox}{width=\textwidth, totalheight=\textheight-2\baselineskip-2\baselineskip,keepaspectratio}
+      \includegraphics{#1}
+    \end{adjustbox}
+  \end{figure}
+}
+\makeatother
+
+\title{Язык программирования C++}
+\subtitle{Лекция 21: type traits, SFINAE, enable\_if, concepts}
+\date{2026}
+\author{Никита Лисица}
+
+\setbeamertemplate{footline}[frame number]
+
+\begin{document}
+
+\frame{\titlepage}
+
+\begin{frame}[fragile]
+\frametitle{Напоминание: iterator\_traits}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Стандартный шаблон \mintinline{cpp}|std::iterator_traits<It>| предоставляет информацию об итераторах: категория (random access / bidirectional / etc), тип значения (\mintinline{cpp}|value_type|), и т.п.
+\pause
+\item По умолчанию достаёт информацию из самого типа итератора \mintinline{cpp}|It|, но содержит специализации для указателей
+\pause
+\item Такие шаблоны, содержащие некоторую информацию о типах, называются \textit{type traits}
+\pause
+\item В заголовочном файле \mintinline{cpp}|<type_traits>| очень много полезных type traits
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Type traits}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T>
+struct is_void {
+  static const bool value = false;
+};
+
+template <>
+struct is_void<void> {
+  static const bool value = true;
+};
+\end{tcblisting}
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T>
+struct is_pointer {
+  static const bool value = false;
+};
+
+template <typename T>
+struct is_pointer<T*> {
+  static const bool value = true;
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Type traits}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Ещё есть \mintinline{cpp}|std::is_integral|, \mintinline{cpp}|std::is_floating_point|, \mintinline{cpp}|std::is_bool|, \mintinline{cpp}|std::is_class|, \mintinline{cpp}|std::is_function|, \mintinline{cpp}|std::is_enum|, и т.п.
+\pause
+\item Некоторые из них можно реализовать на чистом C++, но многие (напр. \mintinline{cpp}|std::is_enum|) реализуются через компилятор
+\pause
+\item Для всех таких traits есть вспомогательные шаблонные константы с суффиксом \texttt{\_v}, чтобы не писать \texttt{::value}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T>
+static constexpr bool is_integral_v = is_integral<T>::value;
+
+// То же самое, что и
+// is_integral<int>::value
+std::is_integral_v<int>
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Type traits}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Есть вспомогательные функции на типах \mintinline{cpp}|std::add/remove_const|, \mintinline{cpp}|std::add/remove_pointer|, \mintinline{cpp}|std::make_signed/unsigned|, и т.п.
+\pause
+\item Их результат -- не значение, а тип: \mintinline{cpp}|std::make_signed<int>::type|
+\pause
+\item Для них есть вспомогательные шаблонные \mintinline{cpp}|using|'и с суффиксом \texttt{\_t}, чтобы не писать \texttt{::type}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T>
+using make_unsigned_t = typename make_unsigned<T>::type;
+
+// То же самое, что и
+// make_unsigned<int>::type
+std::make_unsigned_t<int>
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Type traits: использование}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Можно проверять корректность типов аргументов:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T>
+T pow(T x, T n) {
+  static_assert(std::is_integral_v<T>);
+  // ...
+}
+\end{tcblisting}
+\pause
+\item Можно специализировать структуры данных и алгоритмы:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T, bool IsUnsigned = std::is_unsigned_v<T>>
+class PowImpl { ... };
+
+template <typename T>
+class PowImpl<T, false> { ... };
+\end{tcblisting}
+\pause
+\item \textbf{NB}: и то, и другое лучше делать с помощью \textit{концептов}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{SFINAE}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Допустим, у нас есть шаблонная функция с набором перегрузок:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T>
+T sum(T x, T y) {
+  return x + y;
+}
+
+template <typename T>
+auto sum(typename T::iterator begin, typename T::iterator end) {
+  decltype(*begin) result = {};
+  for (auto it = begin; it != end; ++it)
+    result += *it;
+  return result;
+}
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Что произойдёт, если вызвать \mintinline{cpp}|sum<int>(4, 5)|?
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{SFINAE}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Что произойдёт, если вызвать \mintinline{cpp}|sum<int>(4, 5)|? \pause У типа \mintinline{cpp}|int| нет вложенного типа \mintinline{cpp}|iterator|, поэтому должна произойти ошибка компиляции
+\pause
+\item Стандарт C++ говорит в таких случаях игнорировать те перегрузки, что вызывают \textit{ошибку (failure)} в процессе \textit{подстановки (substitution)} шаблонного параметра
+\pause
+\item \textbf{S}ubstitution \textbf{F}ailure \textbf{I}s \textbf{N}ot \textbf{A}n \textbf{E}rror, или \textbf{SFINAE}
+\pause
+\item \(\Longrightarrow\) Выберется другая перегрузка \mintinline{cpp}|sum(T, T)|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{SFINAE: применение}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Можно узнать, есть ли у типа вложенный тип \mintinline{cpp}|iterator|:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T>
+struct has_iterator {
+  template <typename U>
+  static char test(typename U::iterator*);
+
+  template <typename U>
+  static long test(...);
+
+  static constexpr bool value =
+    (sizeof(test<T>(nullptr)) == sizeof(char));
+};
+
+has_iterator<std::vector<int>>::value; // == true
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{SFINAE: применение}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Можно проверить, если ли перегрузка некоторой функции от типа:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T>
+struct is_printable {
+  template <typename U>
+  static char test(decltype(print(U))*);
+
+  template <typename U>
+  static long test(...);
+
+  static constexpr bool value =
+    (sizeof(test<T>(nullptr)) == sizeof(char));
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{SFINAE: применение}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Можно использовать напрямую, без классов-обёрток:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T>
+void show(const T& x, typename T::iterator* = nullptr) {
+  std::cout << x;
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{enable\_if}
+\begin{itemize}
+\usemintedstyle{tango}
+\item \mintinline{cpp}|std::enable_if| -- шаблон, помогающий за счёт SFINAE специализировать функции по какому-либо условию
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <bool Condition, typename T>
+struct enable_if {
+  using type = T;
+};
+
+template <typename T>
+struct enable_if<false, T> {};
+
+template <typename T>
+using enable_if_t = typename enable_if<T>::type;
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{enable\_if}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T>
+typename std::enable_if_t<!has_iterator<T>, void>
+print(const T& x) {
+  std::cout << x;
+}
+
+template <typename T>
+typename std::enable_if_t<has_iterator<T>, void>
+void print(const T& x) {
+  for (const auto& v : x)
+    std::cout << v;
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Концепты (concepts)}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Появились в C++20
+\pause
+\item Изначально задумывались как сильное расширение системы типов C++ в сторону Haskell typeclasses и higher-order types
+\pause
+\item В итоге свелись к аналогу \texttt{SFINAE/enable\_if}, но с нормальным синтаксисом и с поддержкой со стороны компилятора
+\pause
+\item \textbf{NB}: В первой версии концептов можно было задавать \textit{аксиомы} на операции и типы (например, что сложение ассоциативно)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Концепты (concepts)}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Сам концепт -- по сути, булевая константа, параметризованная типом, известная на момент компиляции
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T>
+concept Integral = std::is_integral_v<T>;
+
+template <typename T>
+concept Unsigned = Integral<T> && std::is_unsigned_v<T>;
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Requires expression}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Для упрощения задания концептов есть особый синтаксис: \textit{requires expression}
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T>
+concept Comparable = requires (T a, T b) {
+  a < b; // Проверяет, что есть подходящий оператор <
+};
+\end{tcblisting}
+\pause
+\item Можно задавать несколько выражений, и проверять их типы:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T>
+concept Comparable = requires (T a, T b) {
+  { a < b } -> std::same_as<bool>;
+  // или
+  { a < b } -> std::convertible_to<bool>;
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Requires expression}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename It>
+concept ForwardIterator = requires (It it) {
+  typename It::value_type;
+  { *it } -> std::same_as<typename It::value_type&>;
+  { ++it } -> std::same_as<It&>;
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Использование концептов, requires clause}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Можно ограничить параметры шаблонной функции только теми, что удовлетворяют опеределённому концепту:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T>
+requires Comparable<T>
+T min(T x, T y) {
+  return (x < y) ? x : y;
+}
+\end{tcblisting}
+\pause
+\item Можно комбинировать несколько концептов:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T>
+requires Comparable<T> && Copyable<T>
+T min(T x, T y) {
+  return (x < y) ? x : y;
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Использование концептов, requires clause}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Есть упрощённый синтаксис для простого случая одного концепта:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <Comparable T>
+T min(T x, T y) {
+  return (x < y) ? x : y;
+}
+\end{tcblisting}
+\pause
+\item ...но его можно комбинировать и с другими концептами:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// То же самое, что и Copyable + Comparable
+template <Comparable T>
+requires Copyable<T>
+T min(T x, T y) {
+  return (x < y) ? x : y;
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Использование концептов, requires clause}
+\begin{itemize}
+\usemintedstyle{tango}
+\item То же самое можно использовать для шаблонов классов:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T>
+requires Comparable<T>
+struct sorted_array {
+  // ...
+};
+\end{tcblisting}
+\pause
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <Comparable T>
+struct sorted_array {
+  // ...
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Requires requires}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Конструкция \mintinline{cpp}|requires|, позволяющая проверить набор условий на тип, называется \textit{requires expression}:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+requires (T a) { a < b; }
+\end{tcblisting}
+\pause
+\item Конструкция \mintinline{cpp}|requires|, проверяющая шаблонный параметр, называется \textit{requires clause}:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+...
+requires Comparable<T>
+...
+\end{tcblisting}
+\pause
+\item Что, если мы хотим определить безымянный концепт и сразу его использовать?
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Requires requires}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Что, если мы хотим определить безымянный концепт и сразу его использовать? \pause \(\Longrightarrow\) \textit{requires requires}:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename T>
+requires requires (T x, T y) { x < y; }
+T min(T x, T y) {
+  return (x < y) ? x : y;
+}
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Выражение \mintinline{cpp}|requires (T x, T y) { x < y; }| целиком -- compile-time булево значение (requires expression)
+\pause
+\item Выражение \mintinline{cpp}|requires Condition| ожидает compile-time булево значение в качестве параметра (requires clause)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Концепты (concepts)}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Чем концепты лучше, чем SFINAE + enable\_if?
+\pause
+\item Быстрее компиляция
+\pause
+\item Чище и понятнее код
+\pause
+\item Не полагаемся на хаки языка
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Концепты (concepts)}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Зачем использовать концепты?
+\pause
+\item Специализация структур данных или алгоритмов по наборам типов
+\pause
+\item Улучшение ошибок компиляции
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Ошибки компиляции в шаблонах}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Один из недостатков шаблонов как вида полиморфизма -- сложные ошибки компиляции
+\pause
+\item Пример: пытаемся отсортировать тип, у которого нет оператора сравнения
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+#include <algorithm>
+#include <iterator>
+
+struct point {
+  int x;
+  int y;
+};
+
+int main()
+{
+  point a[3] { {1,2}, {3,4}, {5,6} };
+  std::sort(std::begin(a), std::end(a));
+}
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Ожидание: `у класса \mintinline{cpp}|point| нет оператора \mintinline{cpp}|<|'
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Ошибки компиляции в шаблонах}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Реальность:
+\slideimage{compile_error.png}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Ошибки компиляции в шаблонах}
+\begin{itemize}
+\usemintedstyle{tango}
+\item GCC 15: ошибка на 131 строку
+\pause
+\item \mintinline{cpp}|std::sort| вызывает \mintinline{cpp}|std::__sort|, который вызывает \mintinline{cpp}|std::__introsort_loop|, который вызывает \mintinline{cpp}|std::__partial_sort|, который вызывает \mintinline{cpp}|std::__heap_select|, который вызывает \mintinline{cpp}|std::__make_heap|, который вызывает \mintinline{cpp}|std::__adjust_heap|, который вызывает \mintinline{cpp}|std::__push_heap|, который вызывает сравнение объектов типа \mintinline{cpp}|point|
+\pause
+\item У компилятора нет информации о том, какой из приведённых вызовов на самом деле ошибочный, поэтому ему приходится выдавать весь стек вызова
+\pause
+\item Компилятор не знает, какой ожидался оператор, поэтому ему приходится вывести список всех опробованных операторов, включая абсолютно нерелевантные (например, для итераторов по \mintinline{cpp}|std::vector|, или для строк)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Ошибки компиляции в концептах}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Добавим в \mintinline{cpp}|std::sort| новый концепт \mintinline{cpp}|Sortable|:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+template <typename It>
+concept Sortable = requires (It x, It y) {
+  { *x < *y } -> std::same_as<bool>;
+};
+
+template <Sortable It>
+void sort(It begin, It end) {
+  // ...
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Ошибки компиляции в концептах}
+\slideimage{concepts_error.png}
+\end{frame}
+
+\end{document}
