@@ -1,0 +1,456 @@
+% (c) Nikita Lisitsa, lisyarus@gmail.com, 2026
+
+\documentclass[10pt]{beamer}
+
+\usepackage[T2A]{fontenc}
+\usepackage[russian]{babel}
+\usepackage{minted}
+
+\usepackage[most]{tcolorbox}
+\tcbuselibrary{minted}
+
+\usepackage{graphicx}
+\graphicspath{ {./images/} }
+
+\usepackage{adjustbox}
+
+\usepackage{color}
+\usepackage{soul}
+\usepackage{multicol}
+\usepackage{hyperref}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc}
+
+\usetheme{metropolis}
+
+\definecolor{red}{rgb}{1,0,0}
+\definecolor{codebg}{RGB}{29,35,49}
+\setminted{fontsize=\footnotesize}
+
+\makeatletter
+\newcommand{\slideimage}[1]{
+  \begin{figure}
+    \begin{adjustbox}{width=\textwidth, totalheight=\textheight-2\baselineskip-2\baselineskip,keepaspectratio}
+      \includegraphics{#1}
+    \end{adjustbox}
+  \end{figure}
+}
+\makeatother
+
+\title{Язык программирования C++}
+\subtitle{Лекция 22: динамически загружаемые модули (плагины), библиотека Boost, работа с сетью}
+\author{Лисица Никита}
+\date{2026}
+
+\setbeamertemplate{footline}[frame number]
+
+\usemintedstyle{solarized-light}
+
+\begin{document}
+
+\frame{\titlepage}
+
+\begin{frame}[fragile]
+\frametitle{Библиотеки: напоминание}
+\begin{itemize}
+\usemintedstyle{tango}
+\item При линковке программы можно линковать \textit{статические} и \textit{динамические библиотеки}
+\pause
+\item Код из \textit{статических} библиотек (в бинарном виде!) \underline{копируется} в наш исполняемый файл
+\pause
+\item На код из \textit{динамических} библиотек \underline{ссылается} наш исполняемый файл
+\pause
+\item При запуске исполняемого файла операционная система сама подгружает необходимые динамические библиотеки
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Плагины}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Иногда хочется \underline{в процессе работы} программы (а не при старте!) загрузить \underline{заранее неизвестную} библиотеку
+\pause
+\item Как правило, это т.н. \textit{плагин} -- дополнительная, заранее не предусмотренная функциональность программы
+\pause
+\item Как это сделать?
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Плагины: загрузка/выгрузка}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Загрузить файл динамической библиотеки по заданному пути: \mintinline{cpp}|dlopen| (Linux, MacOS) / \mintinline{cpp}|LoadLibraryW| (Windows)
+\pause
+\item Возвращает некий идентификатор библиотеки
+\pause
+\item Когда библиотека больше не нужна, её следует отгрузить: \mintinline{cpp}|dlclose| (Linux, MacOS) / \mintinline{cpp}|FreeLibrary| (Windows)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Плагины: загрузка функций}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Загрузить из динамической библиотеки функцию по её имени: \mintinline{cpp}|dlsym| (Linux, MacOS) / \mintinline{cpp}|GetProcAddress| (Windows)
+\pause
+\item \textbf{NB:} ожидается имя функции после \textit{name mangling}'а! В C++ коде лучше всего занести экспортируемую функцию в \mintinline{cpp}|extern "C"|
+\pause
+\item Возвращает \mintinline{cpp}|void *|, ничего не знает о настоящем типе функции!
+\pause
+\item Чтобы вызвать функцию, придётся явно привести тип к указателю на функцию:
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+auto func = static_cast<void(int)>(dlsym(library, "myfunc"));
+func(42);
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Плагины: загрузка функций}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Неудобно помнить о типах большого числа функций
+\pause
+\item Если не угадать тип функции, произойдёт UB (вероятнее всего, креш)
+\pause
+\item Приходится заранее договариваться об \textit{интерфейсе} плагина
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Плагины: интерфейс через классы}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Удобно выделить интерфейс плагина в виде ООП-интерфейса, т.е. класса с виртуальными функциями:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class IPlugin {
+public:
+  void initialize(const ProgramContext&) = 0;
+  void apply(Data&) = 0;
+  void serialize(const Data&, std::ostream&) = 0;
+
+  std::string name() const = 0;
+  std::string describe() const = 0;
+
+  ~IPlugin() = 0;
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Плагины: интерфейс через классы}
+\begin{itemize}
+\item Тогда в самом плагине достаточно сделать функцию, создающую реализацию интерфейса:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+class MyPlugin : public IPlugin { ... };
+
+extern "C" IPlugin * factory()
+{
+  return new MyPlugin();
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Плагины: интерфейс через классы}
+\begin{itemize}
+\item Для загрузки плагина нужно загрузить эту функцию и вызвать:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+auto factory = static_cast<IPlugin*()>(
+  dlsym(library, "factory"));
+
+std::unique_ptr<IPlugin> plugin{factory()};
+plugin->initialize();
+
+std::cout << "Loaded plugin "
+  << plugin->name() << std::endl;
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Плагины: интерфейс через классы}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Экспортируем только одну функцию
+\pause
+\item Все остальные функции работают через понятный компилятору C++ интерфейс \begin{math}\Longrightarrow\end{math} сложнее ошибиться в использовании плагина
+\pause
+\item Фактически, мы заменяем импортирование неизвестных функций на механизм виртуальных функций C++
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Boost}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Boost -- самый крупный набор библиотек общего назначения для С++
+\pause
+\item Обычно содержит код очень высокого качества, сравнимый со стандартной библиотекой, и работающий под большинством компиляторов
+\pause
+\item Многие части стандартной библиотеки пришли из Boost: \mintinline{cpp}|any, array, shared_ptr, chrono, ...|
+\pause
+\item Часто библиотеки из Boost ругают за излишнюю обобщённость (Boost.Geometry, Boost.GIL)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Boost}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Релизится 3 раза в год, первая версия вышла в 1999 году, последняя -- 3 апреля 2025 (версия 1.88.0)
+\pause
+\item \href{https://www.boost.org}{\nolinkurl{boost.org}}
+\pause
+\item Список библиотек: \href{https://www.boost.org/libraries/latest/grid}{\nolinkurl{boost.org/libraries/latest/grid}}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Сеть: IP, TCP, UDP}
+\begin{itemize}
+\usemintedstyle{tango}
+\item IP (Internet Protocol) -- протокол сетевого уровня, связывающий разные компьютеры в сеть с помощью IP-адресов
+\pause
+\item TCP (Transmission Control Protocol) -- протокол транспортного уровня, обеспечивающий общение \underline{непрерывными потоками} данных, с гарантиями доставки
+\pause
+\item UDP (User Datagram Protocol) -- протокол транспортного уровня, обеспечивающий общение \underline{пакетами} данных, без каких-либо гарантий
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Сеть: TCP vs UDP}
+\begin{itemize}
+\usemintedstyle{tango}
+\item TCP гарантирует доставку данных и работает с ними в виде потока, это усложняет его реализацию и требует дополнительной синхронизации, приводящей к задержкам
+\pause
+\begin{itemize}
+\item Весь интернет
+\item Скачивание файлов
+\item Общение между серверами
+\end{itemize}
+\pause
+\item UDP ничего не гарантирует \begin{math}\Longrightarrow\end{math} он быстрее, но им сложнее пользоваться
+\begin{itemize}
+\item Мультиплеерные игры
+\item Мультимедия (напр. стриминг видео)
+\end{itemize}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Сеть: сокеты}
+\begin{itemize}
+\usemintedstyle{tango}
+\item В большинстве ОС есть реализация POSIX сокетов -- интерфейса для работы с TCP/UDP
+\pause
+\item Сокеты -- особый тип файлового дексриптора, т.е. просто идентификатор типа \mintinline{cpp}|int|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Сеть: TCP сокеты}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Создать сокет и присоединиться к серверу по IP:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// SOCK_STREAM - TCP
+// SOCK_DGRAM  - UDP
+int my_socket = socket(AF_INET, SOCK_STREAM, 0);
+
+sockaddr_in remote_address{};
+remote_address.sin_family = AF_INET;
+// Порт в network byte order
+remote_address.sin_port = htons(80);
+inet_pton(AF_INET, "23.215.0.138", &remote_address.sin_addr);
+
+connect(my_socket, (sockaddr*)&remote_address,
+  sizeof(remote_address));
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Сеть: TCP сокеты}
+\begin{itemize}
+\item Отправка и получение данных -- как с файлами:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+const char * message = ...;
+write(my_socket, message, strlen(message));
+
+char buffer[1024];
+read(my_socket, buffer, sizeof(buffer));
+\end{tcblisting}
+\pause
+\item Это \underline{блокирующие} операции!
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Сеть: TCP сокеты}
+\begin{itemize}
+\item Привязать сокет к порту:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+sockaddr_in server_address{};
+server_address.sin_family = AF_INET;
+server_address.sin_addr.s_addr = INADDR_ANY;
+server_address.sin_port = htons(8080);
+
+bind(my_socket, (struct sockaddr*)&server_address,
+  sizeof(server_address));
+listen(my_socket, 3);
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Сеть: TCP сокеты}
+\begin{itemize}
+\item Принимать входящие соединения:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+sockaddr_in client_address{};
+socklen_t client_addrlen = sizeof(client_address);
+
+while (true)
+{
+  int client_fd = accept(socket_fd,
+    (struct sockaddr*)&client_address,
+    &client_addrlen);
+
+  // Общаемся через client_fd ...
+
+  close(client_fd);
+}
+\end{tcblisting}
+\pause
+\item \textbf{NB:} Такой способ умеет работать только с одним клиентом одновременно
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Сеть: много соединений}
+\begin{itemize}
+\item Часто программе нужно работать с несколькими соединениями параллельно
+\pause
+\item Банковское приложение: общается сразу с несколькими серверами
+\pause
+\item База данных: отвечает сразу на несколько параллельных запросов
+\pause
+\item Сервер онлайн-игры: отвечает сразу нескольким игрокам
+\pause
+\item И т.д.
+\pause
+\item Есть два основных способа это реализовать: потоки и асинхронные соединения
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Сеть: потоки}
+\begin{itemize}
+\item Создаём по потоку на каждое соединение
+\pause
+\item Нужна синхронизация между потоками (мьютексы, атомики, и т.д.)
+\pause
+\item Переключение между потоками дорогое -- если соединений слишком много, будет много накладных расходов
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Сеть: асинхронные соединения}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Асинхронная работа с сокетами требует поддержки со стороны ОС
+\pause
+\item Linux: \mintinline{cpp}|epoll|
+\item Windows: \mintinline{cpp}|iocp| (I/O Completion Ports)
+\item MacOS, FreeBSD: \mintinline{cpp}|kqueue|
+\pause
+\item Идея: отдаём ОС большой набор сокетов, и просим нас `разбудить', когда на какой-нибудь из них придут данные
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Сеть: асинхронные соединения}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Потоки при этом использовать не обязательно (но можно)
+\pause
+\item Минимум накладных расходов, всё ожидание и синхронизацию за нас делает ОС
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Сеть: асинхронные соединения}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Обычно это оборачивают в интерфейс, работающий с \textit{callback}'ами (например, лямбда-функциями)
+\pause
+\item Пример: отправь данные в сокет, а когда придёт ответ, вызови такую-то функцию:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+socket.send(my_data, [&]{
+  socket.receive(buffer, [&]{
+    // handle data in buffer
+  });
+});
+\end{tcblisting}
+\pause
+\item Такой код -- когда результат функции готов не сразу, а когда-нибудь -- называют \textit{асинхронным}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Сеть: асинхронные соединения}
+\begin{itemize}
+\item Асинхронность -- стандартный сегодня способ работы с сетью
+\pause
+\item Вместо callback'ов удобнее использовать \textit{корутины} -- они позволяют писать асинхронный код так же, как императивный
+\pause
+\item Node JS, Python asyncio, Boost.Asio, C++20 coroutines, etc
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Сеть: Asio}
+\begin{itemize}
+\item Asio -- библиотека для асинхронной работы с сетью в C++
+\pause
+\item Входит в Boost, но есть и standalone вариант (т.е. не зависящий от Boost'а)
+\pause
+\item На её основе разрабатывается Networking TS -- работа с сетью в стандартной библиотеке C++
+\pause
+\item Поддерживает корутины из C++20
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Сеть: Asio}
+\begin{itemize}
+\item Пример создания сокета и отправки данных:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+using boost::asio;
+using boost::asio::ip::tcp;
+
+asio::io_context io_context;
+
+tcp::socket socket(io_context);
+connect(socket, address);
+write(socket, buffer(message, sizeof(message)));
+read(socket, buffer(answer, sizeof(answer)));
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\end{document}
