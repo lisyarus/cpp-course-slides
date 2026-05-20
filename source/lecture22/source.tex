@@ -72,6 +72,8 @@
 \pause
 \item Как правило, это т.н. \textit{плагин} -- дополнительная, заранее не предусмотренная функциональность программы
 \pause
+\item Некоторые системные библиотеки иногда тоже загружаются этим способом (напр. загрузчики OpenGL/Vulkan)
+\pause
 \item Как это сделать?
 \end{itemize}
 \end{frame}
@@ -102,6 +104,7 @@
 \end{itemize}
 \usemintedstyle{lightbulb}
 \begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Код программы
 auto func = static_cast<void(int)>(dlsym(library, "myfunc"));
 func(42);
 \end{tcblisting}
@@ -126,6 +129,7 @@ func(42);
 \item Удобно выделить интерфейс плагина в виде ООП-интерфейса, т.е. класса с виртуальными функциями:
 \usemintedstyle{lightbulb}
 \begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Общий header программы и плагина
 class IPlugin {
 public:
   void initialize(const ProgramContext&) = 0;
@@ -147,10 +151,10 @@ public:
 \item Тогда в самом плагине достаточно сделать функцию, создающую реализацию интерфейса:
 \usemintedstyle{lightbulb}
 \begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Код плагина
 class MyPlugin : public IPlugin { ... };
 
-extern "C" IPlugin * factory()
-{
+extern "C" IPlugin* create() {
   return new MyPlugin();
 }
 \end{tcblisting}
@@ -163,10 +167,11 @@ extern "C" IPlugin * factory()
 \item Для загрузки плагина нужно загрузить эту функцию и вызвать:
 \usemintedstyle{lightbulb}
 \begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
-auto factory = static_cast<IPlugin*()>(
-  dlsym(library, "factory"));
+// Код программы
+auto create = static_cast<IPlugin*()>(
+  dlsym(library, "create"));
 
-std::unique_ptr<IPlugin> plugin{factory()};
+IPlugin* plugin = create();
 plugin->initialize();
 
 std::cout << "Loaded plugin "
@@ -176,12 +181,55 @@ std::cout << "Loaded plugin "
 \end{frame}
 
 \begin{frame}[fragile]
+\frametitle{Плагины: удаление}
+\begin{itemize}
+\usemintedstyle{tango}
+\item В общем случае, нет гарании, что динамическая память (куча) процесса и динамической библиотеки -- это одно и то же
+\pause
+\item \(\Longrightarrow\) Объекты, выделенные через \mintinline{cpp}|malloc/new| в динамической библиотеке, нужно удалять через \mintinline{cpp}|free/delete| в коде библиотеки
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Код плагина
+
+extern "C" IPlugin* create() {
+  return new MyPlugin();
+}
+
+extern "C" void destroy(IPlugin* plugin) {
+  delete plugin;
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Плагины: shared\_ptr}
+\begin{itemize}
+\usemintedstyle{tango}
+\item Удобно выделять объекты внутри плагина через \mintinline{cpp}|std::make_shared|: он запомнит \textit{deleter} при создании объекта, и подцепит функцию удаления из самого плагина
+\pause
+\item \textbf{NB:} Сам интерфейс плагина (\mintinline{cpp}|IPlugin|) так не создать: нетривиальные C++-объекты нельзя передавать/возвращать через \mintinline{cpp}|extern "C"| функции
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Код плагина
+class MyPlugin : public IPlugin {
+public:
+  std::shared_ptr<Object> makeObject() override {
+    return std::make_shared<Object>();
+  }
+};
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
 \frametitle{Плагины: интерфейс через классы}
 \begin{itemize}
 \usemintedstyle{tango}
-\item Экспортируем только одну функцию
+\item Экспортируем минимум функций
 \pause
-\item Все остальные функции работают через понятный компилятору C++ интерфейс \begin{math}\Longrightarrow\end{math} сложнее ошибиться в использовании плагина
+\item Все остальные функции плагина работают через понятный компилятору C++ интерфейс \begin{math}\Longrightarrow\end{math} сложнее ошибиться в использовании плагина
 \pause
 \item Фактически, мы заменяем импортирование неизвестных функций на механизм виртуальных функций C++
 \end{itemize}
