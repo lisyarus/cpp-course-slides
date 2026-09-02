@@ -1,0 +1,125 @@
+% (c) Nikita Lisitsa, lisyarus@gmail.com, 2026
+
+\documentclass[10pt]{beamer}
+
+\usepackage[T2A]{fontenc}
+\usepackage[russian]{babel}
+\usepackage{minted}
+
+\usepackage[most]{tcolorbox}
+\tcbuselibrary{minted}
+
+\usepackage{graphicx}
+\graphicspath{ {./images/} }
+
+\usepackage{adjustbox}
+
+\usepackage{color}
+\usepackage{soul}
+\usepackage{multicol}
+\usepackage{hyperref}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc}
+
+\usetheme{metropolis}
+
+\definecolor{red}{rgb}{1,0,0}
+\definecolor{codebg}{RGB}{29,35,49}
+\setminted{fontsize=\footnotesize}
+
+\makeatletter
+\newcommand{\slideimage}[1]{
+  \begin{figure}
+    \begin{adjustbox}{width=\textwidth, totalheight=\textheight-2\baselineskip-2\baselineskip,keepaspectratio}
+      \includegraphics{#1}
+    \end{adjustbox}
+  \end{figure}
+}
+\makeatother
+
+\title{Язык программирования C++}
+\subtitle{Введение в курс}
+\author{Лисица Никита}
+\date{2026}
+
+\setbeamertemplate{footline}[frame number]
+
+\usemintedstyle{tango}
+
+\begin{document}
+
+\frame{\titlepage}
+
+\begin{frame}[fragile]
+\frametitle{Цели курса}
+\begin{itemize}
+\item Узнать, \textbf{как работает компьютер}: регистры, стек, счётчик команд
+\pause
+\item Изучить подробно \textbf{языки C и C++}
+\pause
+\item Рассмотреть \textbf{парадигмы программирования} на примере C и C++: процедурное, объектно-ориентированное, обобщённое, функциональное
+\pause
+\item Рассмотреть \textbf{шаблоны проектировния} на примере C и C++
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Пререквезиты курса}
+\begin{itemize}
+\item \textbf{Желательно:} умение программировать на каком-нибудь языке (Basic, Pascal, Python, ...)
+\pause
+\item \textbf{Обязательно:} готовность разобраться с базовым синтаксисом C (переменные, условия, циклы, функции)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Зачем изучать C и C++?}
+\begin{itemize}
+\item \textbf{Низкоуровневые языки} \(\Longrightarrow\) помогают лучше понять, как работает `железо'
+\pause
+\item \textbf{Высокопроизводительные языки} \(\Longrightarrow\) на них нишут операционные системы, драйверы, базы данных, текстовые редакторы, веб-серверы, мультимедиа-редакторы, видеоигры
+\pause
+\item \textbf{Старые и популярные языки} \(\Longrightarrow\) синтаксис многих современных языков основан на C
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{План курса}
+\begin{itemize}
+\item \textbf{Первый семестр}: мини-курс (8 занятий) по языку C
+\pause
+\item \textbf{Второй семестр}: полный курс (15 занятий) по языку C++
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Отчётность по курсу}
+\begin{itemize}
+\item \textbf{Лабораторные работы}: маленькие задания, выдаются \textbf{на каждой практике}
+\item \textbf{Домашние работы}: большие задания, выдаются \textbf{на практиках} 1-2 раза в семестр
+\item \textbf{Письменные тесты}: выдаются \textbf{на лекциях} 2-3 раза в семестр
+\item \textbf{Экзамен}: 1 раз в конце семестра
+\item За все виды отчётности начисляются баллы
+\item Для допуска на экзамен нужно
+\begin{itemize}
+\item Набрать \(\geq30\%\) общего количества баллов без экзамена
+\item Набрать \(>0\) баллов за домашние работы
+\end{itemize}
+\item Для сдачи практических заданий нужно зарегистрироваться в системе \nolinkurl{gitlab}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Рекомендуемые инструменты}
+\begin{itemize}
+\item Linux (напр. Ubuntu)
+\pause
+\item Терминал
+\pause
+\item Компилятор \nolinkurl{gcc}, утилита \nolinkurl{make}
+\pause
+\item \textbf{N.B.:} Если вы понимаете, что делаете, можно и другое ПО, но проверяться будет именно на этом
+\end{itemize}
+\end{frame}
+
+\end{document}
