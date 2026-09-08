@@ -1,0 +1,443 @@
+% (c) Nikita Lisitsa, lisyarus@gmail.com, 2026
+
+\documentclass[10pt]{beamer}
+
+\usepackage[T2A]{fontenc}
+\usepackage[russian]{babel}
+\usepackage{minted}
+
+\usepackage[most]{tcolorbox}
+\tcbuselibrary{minted}
+
+\usepackage{graphicx}
+\graphicspath{ {./images/} }
+
+\usepackage{adjustbox}
+
+\usepackage{color}
+\usepackage{soul}
+\usepackage{multicol}
+\usepackage{hyperref}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc}
+
+\usetheme{metropolis}
+
+\definecolor{red}{rgb}{1,0,0}
+\definecolor{codebg}{RGB}{29,35,49}
+\setminted{fontsize=\footnotesize}
+
+\makeatletter
+\newcommand{\slideimage}[1]{
+  \begin{figure}
+    \begin{adjustbox}{width=\textwidth, totalheight=\textheight-2\baselineskip-2\baselineskip,keepaspectratio}
+      \includegraphics{#1}
+    \end{adjustbox}
+  \end{figure}
+}
+\makeatother
+
+\title{Язык программирования C}
+\subtitle{Лекция 1: языки высокого уровня, программы из нескольких файлов}
+\author{Лисица Никита}
+\date{2026}
+
+\setbeamertemplate{footline}[frame number]
+
+\usemintedstyle{tango}
+
+\begin{document}
+
+\frame{\titlepage}
+
+\begin{frame}[fragile]
+\frametitle{Напоминание из курса информатики :)}
+\begin{itemize}
+\item Всё, с чем умеет работать компьютер -- это числа:
+\pause
+\begin{itemize}
+\item Текст -- последовательность чисел, интерпретируемая посредством кодировки (напр. в ASCII символ 'A' это число 65)
+\pause
+\item Картинка -- последовательность чисел, задающих цвета (RGB -- красный, зелёный, синий)
+\pause
+\item Звук -- последовательность чисел, задающих звуковую волну (часто 16-битные, от -32768 до 32767)
+\pause
+\item Программа -- последовательность чисел, задающих команды для исполнения процессору
+\end{itemize}
+\pause
+\item Числа хранятся в двоичной системе счисления (есть ток / нет тока)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Напоминание из курса информатики :)}
+\begin{itemize}
+\item Всё, что умеет делать процессор -- операции над числами (арифметические, логические) и работать с периферийными устройствами (память, жёсткий диск, видеокарта, экран)
+\pause
+\begin{itemize}
+\item Арифметическая операция: прочитать аргументы из памяти в процессор, выполнить операцию, записать результат в память
+\pause
+\item Вывести картинку: отправить цвета пикселей на экран
+\pause
+\item Записать файл: послать данные и их положение на диске в контроллер жесткого диска
+\end{itemize}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Процессор}
+\begin{itemize}
+\item У процессора есть
+\pause
+\begin{itemize}
+\item Набор поддерживаемых команд
+\pause
+\item Регистры -- ячейки памяти внутри процессора (очень быстрые чтение/запись)
+\end{itemize}
+\pause
+\item Всё это вместо называется \textit{архитектурой процессора}: x86, x86-64 (AMD64), Aarch64 (ARM64), ...
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Программа в машинных кодах}
+\begin{itemize}
+\item Как могла бы выглядеть (условно) программа (для гипотетической архитектуры процессора):
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+45 100 1    // Загрузить число из ячейки 100 в регистр R1
+45 300 2    // Загрузить число из ячейки 300 в регистр R2
+27 1 2 3    // Сложить R1 и R2 и записать результат в R3
+46 500 3    // Записать число из R3 в ячейку памяти 500
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item \mintinline{cpp}|27| -- код команды `сложить два числа'
+\item \mintinline{cpp}|45| -- код команды `загрузить из памяти'
+\item \mintinline{cpp}|46| -- код команды `записать в память'
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Программа в машинных кодах}
+\begin{itemize}
+\item Программировать в таком виде очень неудобно:
+\pause
+\begin{itemize}
+\item Нужно помнить номера команд и порядок их аргументов
+\pause
+\item Нужно помнить, какие регистры заняты (и чем)
+\pause
+\item Нужно помнить, какие ячейки памяти заняты (и чем)
+\pause
+\item Программа под одну архитектуру не будет работать на другой
+\end{itemize}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Язык ассемблера}
+\begin{itemize}
+\item Ассемблер (от англ. assembler -- сборщик) -- программа, транслирующая текст на особом языке (языке ассемблера) в машинный код
+\pause
+\item У команд и регистров есть понятные, запоминающиеся имена
+\pause
+\item Ячейкам памяти можно давать свои имена
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+label 100 x
+label 300 y
+label 500 z
+
+load x reg1
+load y reg2
+add reg1 reg2 reg3
+store z reg3
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Язык ассемблера}
+\begin{itemize}
+\item На языке ассемблера программировать гораздо удобнее, чем в машинных кодах, но некоторые проблемы остаются:
+\pause
+\begin{itemize}
+\item Нет удобных управляющих конструкций (только jump'ы -- `прыжок' с одной инструкции на другую)
+\pause
+\item Тяжело писать сложные программы
+\pause
+\item Всё ещё нужно помнить, какие регистры чем заняты
+\pause
+\item Программа всё ещё заточена под конкретную архитектуру
+\end{itemize}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Языки высокого уровня}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int x = 10;
+int y = 20;
+int z = x + y;
+\end{tcblisting}
+\pause
+\begin{itemize}
+\item Компилятор -- программа, преобразующая текст на языке программирования в язык ассемблера (и затем в машинный код)
+\pause
+\begin{itemize}
+\item Сам подбирает нужные команды, ячейки памяти, номера регистров, и т.д.
+\pause
+\item Сам разбирается с особенностями конкретной архитектуры процессора
+\pause
+\item Оптимизирует подбор команд, чтобы программа работала быстрее
+\end{itemize}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Язык C}
+\begin{itemize}
+\item Появился в 1972 в AT\&T Bell Labs с целью переписать ядро операционной системы Unix с языка ассемблера на кросс-платформенный язык
+\pause
+\item Был вдохновлён языками ALGOL 60, BCPL, B
+\pause
+\item Обрёл популярность после переписывания ядра Unix на C, и стал де-факто стандартом для низкоуровневых библиотек и интерфейсов
+\pause
+\item В современности, как правило, для поддержки новой архитектуры достаточно реализовать под неё компилятор C \textit{(или бэкенд LLVM)}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Программы из нескольких файлов}
+\begin{itemize}
+\item Зачем программу разбивают на части?
+\pause
+\begin{itemize}
+\item Чем меньше код, тем его проще понять, тестировать, и отлаживать
+\pause
+\item Над разными частями могут работать разные люди
+\pause
+\item Выделенные части кода легче переиспользовать в других проектах
+\end{itemize}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Пример программы: игра в шахматы}
+\begin{itemize}
+\item Файл с обработкой логики:
+\begin{itemize}
+\item Функция `проверить валидность хода'
+\item Функция `сделать ход'
+\item Функция `проверить выигрыш'
+\end{itemize}
+\pause
+\item Файл с обработкой пользовательского ввода:
+\begin{itemize}
+\item Функция `узнать положение курсора мыши'
+\item Функция `проверить нажатость кнопки мыши'
+\end{itemize}
+\pause
+\item Файл с выводом на экран:
+\begin{itemize}
+\item Функция `нарисовать шахматную доску'
+\item Функция `нарисовать шахматную фигуру'
+\end{itemize}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Пример программы: сумма чисел}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// sum.c
+int sum(int x, int y) {
+  return x + y;
+}
+\end{tcblisting}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// main.c
+int main() {
+  int a = 3, b = 5;
+  int c = sum(a, b);
+  return 0;
+}
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Процесс сборки программы}
+\begin{itemize}
+\item Компилятор превращает исходный код в \textit{объектный файл} -- машинный код + пометки о том, где лежит код какой функции
+\begin{itemize}
+\item \mintinline{text}|main.c -> main.o|
+\item \mintinline{text}| sum.c ->  sum.o|
+\end{itemize}
+\pause
+\item \textit{Линковщик} (компоновщик) превращает список объектных файлов в готовую программу
+\begin{itemize}
+\item \mintinline{text}|main.o + sum.o -> sum.exe|
+\end{itemize}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Линковщик}
+\begin{itemize}
+\item В объектных файлах вызовы функций записаны по именам, так как на этом этапе неизвестны финальные адреса функций в программе
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+[10] load a reg1
+[11] load b reg2
+[12] call sum
+[13] store c reg3
+[14] return
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Линковщик}
+\begin{itemize}
+\item Линковщик собирает код всех функций вместе, назначает им адреса, и заменяет вызовы по имени на вызов по адресу
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+main:
+[10] load a reg1
+[11] load b reg2
+[12] call [15]
+[13] store c reg3
+[14] return
+
+sum:
+[15] add reg1 reg2 reg3
+[16] return
+\end{tcblisting}
+\pause
+\item На уровне процессора имён функций \textit{не существует}, есть только адреса инструкций
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Процесс сборки программы}
+\begin{itemize}
+\item Компиляция намного сложнее, чем линковка:
+\pause
+\begin{itemize}
+\item Компиляция: превратить управляющие конструкции в jump'ы, проверить типы, выделить регистры, при необходимости выгрузить в память промежуточные вычисления, подобрать эффективные инструкции, удалить лишние инструкции
+\pause
+\item Линковка: склеить вместе готовый машинный код и заменить имена на адреса
+\end{itemize}
+\pause
+\item Как правило, программист в конкретный момент работает только с небольшим набором файлов (например, изменили функцию \mintinline{cpp}|sum|, не меняя \mintinline{cpp}|main|)
+\pause
+\item Перекомпилировать нужно только те файлы, в которых были изменения (например, только \mintinline{cpp}|sum.c|)
+\pause
+\item Линковку всё равно придётся сделать целиком, но это \underline{дешёвая операция}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Ошибки линковки}
+\begin{itemize}
+\item \texttt{Undefined reference}: вызов несуществующей функции (вызов есть, а функции нет)
+\item \texttt{Multiple definition}: несколько функций с одинаковым именем
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Линковщик и типы}
+\begin{itemize}
+\item Линковщик и объектные файлы ничего не знают про типы и количество аргументов у функций
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// sum.c
+int sum(int x, int y) {
+  return x + y;
+}
+\end{tcblisting}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// main.c
+int main() {
+  int a = 3, b = 5;
+  int c = sum(a);
+  return 0;
+}
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Ошибка времени выполнения (runtime): фактически \mintinline{cpp}|sum| возьмёт что попало в качестве второго аргумента (то, что окажется в соответствующем регистре)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Заголовочные файлы}
+\begin{itemize}
+\item Для решения этой проблемы существуют \textit{заголовочные файлы (headers, хедеры)}
+\pause
+\item В специальном файле с расширением \mintinline{cpp}|.h| помещается \textit{объявление (declaration)} функции без её \textit{реализации (определение, definition)}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// sum.h
+int sum(int x, int y);
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Заголовочные файлы}
+\begin{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// sum.c
+#include "sum.h"
+
+int sum(int x, int y) {
+  return x + y;
+}
+\end{tcblisting}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// main.c
+#include "sum.h"
+
+int main() {
+  int a = 3, b = 5;
+  int c = sum(a);
+  return 0;
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Заголовочные файлы}
+\begin{itemize}
+\item \mintinline{cpp}|#include| -- \textit{директива препроцессора} (одной из частей компилятора C)
+\pause
+\item Она вставляет содержимое файла целиком в текущее место программы
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// main.c после обработки препроцессором
+
+int sum(int x, int y);
+
+int main() {
+  int a = 3, b = 5;
+  int c = sum(a); // ошибка: неверное число аргументов
+  return 0;
+}
+\end{tcblisting}
+\pause
+\item Имея \textit{объявление функции}, компилятор может проверить соответствие типов аргументов и их количества
+\end{itemize}
+\end{frame}
+
+\end{document}
