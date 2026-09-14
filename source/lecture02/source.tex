@@ -1,0 +1,477 @@
+% (c) Nikita Lisitsa, lisyarus@gmail.com, 2026
+
+\documentclass[10pt]{beamer}
+
+\usepackage[T2A]{fontenc}
+\usepackage[russian]{babel}
+\usepackage{minted}
+
+\usepackage[most]{tcolorbox}
+\tcbuselibrary{minted}
+
+\usepackage{graphicx}
+\graphicspath{ {./images/} }
+
+\usepackage{adjustbox}
+
+\usepackage{color}
+\usepackage{soul}
+\usepackage{multicol}
+\usepackage{multirow}
+\usepackage{hyperref}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc}
+
+\usetheme{metropolis}
+
+\definecolor{red}{rgb}{1,0,0}
+\definecolor{codebg}{RGB}{29,35,49}
+\setminted{fontsize=\footnotesize}
+
+\makeatletter
+\newcommand{\slideimage}[1]{
+  \begin{figure}
+    \begin{adjustbox}{width=\textwidth, totalheight=\textheight-2\baselineskip-2\baselineskip,keepaspectratio}
+      \includegraphics{#1}
+    \end{adjustbox}
+  \end{figure}
+}
+\makeatother
+
+\title{Язык программирования C}
+\subtitle{Лекция 2: встроенные типы, массивы, указатели}
+\author{Лисица Никита}
+\date{2026}
+
+\setbeamertemplate{footline}[frame number]
+
+\usemintedstyle{tango}
+
+\begin{document}
+
+\frame{\titlepage}
+
+\begin{frame}[fragile]
+\frametitle{Встроенные (базовые) типы данных}
+На большинстве современных платформ:
+\begin{center}
+  \begin{tabular}{ c c c }
+    \hline
+    Тип & Размер в байтах & Диапазон значений \\
+    \hline
+    \mintinline{cpp}|char| & 1 & \(-2^7\dots 2^7-1\) \\
+    \mintinline{cpp}|short| & 2 & \(-2^{15}\dots 2^{15}-1\) \\
+    \mintinline{cpp}|int| & 4 & \(-2^{31}\dots 2^{31}-1\) \\
+    \mintinline{cpp}|long| & 4/8 & \(-2^{31/63}\dots 2^{31/63}-1\) \\
+    \mintinline{cpp}|long long| & 8 & \(-2^{63}\dots 2^{63}-1\) \\
+    \mintinline{cpp}|unsigned char| & 1 & \(0\dots 2^8-1\) \\
+    \mintinline{cpp}|unsigned short| & 2 & \(0\dots 2^{16}-1\) \\
+    \mintinline{cpp}|unsigned int| & 4 & \(0\dots 2^{32}-1\) \\
+    \mintinline{cpp}|unsigned long| & 4/8 & \(0\dots 2^{32/64}-1\) \\
+    \mintinline{cpp}|unsigned long long| & 8 & \(0\dots 2^{64}-1\) \\
+    \hline
+    \mintinline{cpp}|float| & 4 & \(\pm1.4\times 10^{-45}\dots 3.4\times 10^{38}\) \\
+    \mintinline{cpp}|double| & 8 & \(\pm4.9\times 10^{-324}\dots 1.8\times 10^{308}\) \\
+    \hline
+  \end{tabular}
+\end{center}
+\pause
+\begin{itemize}
+\item Почему `на большинстве'?
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Встроенные (базовые) типы данных}
+\begin{itemize}
+\item Стандарт языка C гарантирует только \textbf{минимальный размер} встроенных типов и неравенства на их порядок
+\pause
+\item \mintinline{cpp}|char| -- всегда 1 байт (почти всегда 8 бит)
+\pause
+\item \mintinline{cpp}|int| -- естественный для CPU тип (\(\approx\) размер регистров), как минимум 16 бит (обычно 32)
+\pause
+\item \mintinline{cpp}|sizeof(short)| \(\leq\) \mintinline{cpp}|sizeof(int)| \(\leq\) \mintinline{cpp}|sizeof(long)|
+\pause
+\item \mintinline{cpp}|sizeof| -- встроенный в язык оператор (не функция!), в момент компиляции его вызов заменяется на размер типа или значения
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Изучить (вспомнить) самостоятельно}
+\begin{itemize}
+\item Представление отрицательных чисел в дополнительном коде
+\pause
+\item Представление чисел с плавающей точкой
+\pause
+\item Приведение типов (явное, неявное)
+\pause
+\item Что-то из этого будет в письменном тесте :)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Массивы}
+\begin{itemize}
+\item Последовательность объектов одного типа, лежащих в непрерывном участке памяти
+\item Размер должен быть известен \textbf{на момент компиляции}!
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Массив из 10-ти элементов типа int
+// Размер в памяти: 10 * sizeof(int)
+int array[10];
+
+// Инициализация:
+int array[10] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+
+// Заполнить нулями:
+int array[10] = {0};
+
+// Вывести размер из инициализации:
+int array[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Массивы}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+char array[10];
+
+// Прочитать/записать значение по индексу:
+array[0] = 10;
+array[1] = array[0] + 5;
+
+// Узнать размер:
+int size = sizeof(array) / sizeof(array[0]);
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Массивы char}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Массив из 10-ти элементов типа char
+// Размер в памяти: 10 * sizeof(int)
+char array[10];
+
+char array[10] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+
+char array[] = {'H', 'e', 'l', 'l', 'o', ',',
+  ' ', 'w', 'o', 'r', 'l', 'd', '!', '\0'};
+
+// То же самое через строковой литерал
+// 14 элементов - включает терминирующий '\0'
+char array[] = "Hello, world!";
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Многомерные массивы}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Массив из 3-х элементов, каждый - массив из 4-х int-ов
+// Размер в памяти: 3 * 4 * sizeof(int)
+int array[3][4];
+
+int array[2][2] = {
+  {1, 2},
+  {3, 4},
+};
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Выход за пределы массива}
+\begin{itemize}
+\item Для массива \mintinline{cpp}|int array[N];| обращение по индексу \(i<0\) или \(i\geq N\) -- \textbf{undefined behavior}
+\pause
+\item Что произойдёт на практике, если написать \mintinline{cpp}|array[-1]|?
+\pause
+\item На современных компиляторах будет предупреждение/ошибка
+\pause
+\item Если индекс неизвестен в момент компиляции (переменная/аргумент функции/т.п.), процессор попытается прочитать память за пределами массива
+\pause
+\item Если это память того же процесса -- ошибки не будет, но будет прочитано `мусорное' значение
+\pause
+\item Если это память другого процесса -- access violation / segmentation fault
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Указатели}
+\begin{itemize}
+\item Указатель (pointer) -- объект, указывающий/ссылающийся на другой объект
+\pause
+\item На практике на большинстве платформ указатель -- адрес в памяти (число), номер первого байта объекта
+\pause
+\item \textbf{N.B.:} это адрес не в \textit{физической памяти}, а в \textit{виртуальной}, но это не принципиально для понимания
+\pause
+\item \mintinline{cpp}|int *p;| -- указатель на кусок памяти, в котором хранится число типа \mintinline{cpp}|int|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Указатели}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int a = 42;
+
+// Взятие адреса переменной:
+int *p = &a;
+
+// "Разыменование" указателя
+// Прочитать значение по адресу
+int b = *p;
+
+// "Разыменование" указателя
+// Записать значение по адресу
+*p = 67;
+
+// Напечатать указатель
+printf("%p", p);
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Размер указателя}
+\begin{itemize}
+\item Стандарт C не регламентирует размер самого указателя, но он одинаков для всех типов указателей (кроме указателей на функции)
+\pause
+\item На практике размер указателя зависит от битности системы: 4 байта на 32-битной (x86), 8 байт на 64-битной (x86\_64, ARM64)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Размер указателя}
+\begin{itemize}
+\item Не путайте размер указателя и размер объекта, не который ссылается указатель!
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+char c = 'A';
+int i = 10;
+double d = 3.1415;
+
+// На x86\_64
+sizeof(c) == 1;
+sizeof(i) == 4;
+sizeof(d) == 8;
+sizeof(&c) == 8;
+sizeof(&i) == 8;
+sizeof(&d) == 8;
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Арифметика указателей}
+\begin{itemize}
+\item К указателям можно прибавлять/вычитать число
+\pause
+\item Семантика такой операции -- перейти к следующему элементу того же типа в непрерывном участке памяти/массиве
+\pause
+\item \(\Longrightarrow\) К адресу, хранящемуся в указателе, прибавляется число, умноженное на \mintinline{cpp}|sizeof(*p)|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Арифметика указателей}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+char array_c[] = "MKN rules";
+int array_i[10];
+double array_d[10];
+
+char *pc = &array_c[0];
+int *pi = &array_i[0];
+double *pd = &array_d[0];
+
+// К фактическому адресу прибавится sizeof(char) == 1 байт
+pc += 1;
+
+// К фактическому адресу прибавится sizeof(int) == 4 байт
+pi += 1;
+
+// К фактическому адресу прибавится sizeof(double) == 8 байт
+pd += 1;
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Арифметика указателей}
+\begin{itemize}
+\item Аналогично, вычитание указателей даёт количество элементов между ними (а не байт!)
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int array[10];
+
+int *p1 = &array[3];
+int *p2 = &array[7];
+
+// delta == 4
+int delta = p2 - p1;
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Указатели и массивы}
+\begin{itemize}
+\item Массив автоматически приводится к указателю на первый элемент массива:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int array[10];
+// То же самое, что p = &array[0]
+int *p = array;
+
+// Ошибка компиляции: массиву нельзя присвоить новый адрес
+array = p;
+\end{tcblisting}
+\pause
+\item Через указатель тоже можно обращаться по индексу;
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int *p = ...;
+
+p[2] = p[1] + p[0];
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item \mintinline{cpp}|p[i]| эквивалентно \mintinline{cpp}|*(p + i)|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Указатели и массивы}
+\begin{itemize}
+\item \mintinline{cpp}|p[i]| эквивалентно \mintinline{cpp}|*(p + i)|
+\pause
+\item Сложение коммутативно: \mintinline{cpp}|*(p + i) == *(i + p)|
+\pause
+\item \(\Longrightarrow\) Такой синтаксис тоже работает: \mintinline{cpp}|i[p]|
+\pause
+\item Не стоит так делать в реальном коде :)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Приведение типов указателей}
+\begin{itemize}
+\item В языке C любые типы указателей приводятся друг к другу:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int  *pi = ...;
+char *pc = ...;
+
+// ОК в C, ошибка в C++
+pi = pc;
+\end{tcblisting}
+\pause
+\item В C++ потребуется явное приведение типа:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+pi = (int*) pc;
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Применение указателей}
+\begin{itemize}
+\item Хотим написать функцию, меняющую местами два значения
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+void swap(int a, int b) {
+  int temp = a;
+  a = b;
+  b = temp;
+}
+
+int main() {
+  int x = 3, y = 4;
+  swap(x, y);
+  return 0;
+}
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item Функция \mintinline{cpp}|swap| поменяет местами \textbf{копии} аргументов, а не сами переменные \mintinline{cpp}|x,y|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Применение указателей}
+\begin{itemize}
+\item Решение:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+void swap(int *a, int *b) {
+  int temp = *a;
+  *a = *b;
+  *b = temp;
+}
+
+int main() {
+  int x = 3, y = 4;
+  swap(&x, &y);
+  return 0;
+}
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\item В функцию \mintinline{cpp}|swap| передаются \textbf{копии адресов} переменных \mintinline{cpp}|x,y| \(\Longrightarrow\) функция может поменять значения самих переменных
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Применение указателей}
+\begin{itemize}
+\item Хотим передать в функцию большой объект и избежать лишнего копирования:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+big_type big_object = ...;
+foo(&big_object);
+\end{tcblisting}
+\pause
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+char str[] = "Lorem ipsum dolor sit amet, ...";
+int size = strlen(str);
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Применение указателей}
+\begin{itemize}
+\item Хотим пройтись по большому массиву:
+\end{itemize}
+\begin{multicols}{2}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int strlen (char *ptr) {
+  int len = 0;
+  while (ptr[len] != '\0') {
+    ++len;
+  }
+  return len;
+}
+\end{tcblisting}
+\columnbreak
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int strlen (char *ptr) {
+  char *p = ptr;
+  while (*p != '\0') {
+    ++p;
+  }
+  return p - ptr;
+}
+\end{tcblisting}
+\end{multicols}
+\pause
+\begin{itemize}
+\usemintedstyle{tango}
+\item \mintinline{cpp}|ptr[len]| раскрывается в \mintinline{cpp}|*(ptr + len)| \(\Longrightarrow\) лишнее сложение в сравнении с правым вариантом
+\end{itemize}
+\end{frame}
+
+\end{document}

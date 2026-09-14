@@ -5,6 +5,7 @@ PDFLATEX=lualatex -shell-escape -interaction=nonstopmode -halt-on-error
 all: pdf/lecture00.pdf
 
 all: pdf/lecture01.pdf
+all: pdf/lecture02.pdf
 
 all: pdf/lecture09.pdf
 all: pdf/lecture10.pdf
