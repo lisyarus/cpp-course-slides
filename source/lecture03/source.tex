@@ -1,0 +1,513 @@
+% (c) Nikita Lisitsa, lisyarus@gmail.com, 2026
+
+\documentclass[10pt]{beamer}
+
+\usepackage[T2A]{fontenc}
+\usepackage[russian]{babel}
+\usepackage{minted}
+
+\usepackage[most]{tcolorbox}
+\tcbuselibrary{minted}
+
+\usepackage{graphicx}
+\graphicspath{ {./images/} }
+
+\usepackage{adjustbox}
+
+\usepackage{color}
+\usepackage{soul}
+\usepackage{multicol}
+\usepackage{multirow}
+\usepackage{hyperref}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc}
+
+\usetheme{metropolis}
+
+\definecolor{red}{rgb}{1,0,0}
+\definecolor{codebg}{RGB}{29,35,49}
+\setminted{fontsize=\footnotesize}
+
+\makeatletter
+\newcommand{\slideimage}[1]{
+  \begin{figure}
+    \begin{adjustbox}{width=\textwidth, totalheight=\textheight-2\baselineskip-2\baselineskip,keepaspectratio}
+      \includegraphics{#1}
+    \end{adjustbox}
+  \end{figure}
+}
+\makeatother
+
+\title{Язык программирования C}
+\subtitle{Лекция 3: указатели на функции, виды памяти, стек, глобальные переменные, static}
+\author{Лисица Никита}
+\date{2026}
+
+\setbeamertemplate{footline}[frame number]
+
+\usemintedstyle{tango}
+
+\begin{document}
+
+\frame{\titlepage}
+
+\begin{frame}[fragile]
+\frametitle{``Универсальная'' сортировка}
+\begin{itemize}
+\item Хотим написать универсальную/обобщённую сортировку, работающую с любым типом данных: \mintinline{cpp}|int|, \mintinline{cpp}|float|, \mintinline{cpp}|const char*|, \mintinline{cpp}|struct product_t|
+\pause
+\item Проблемы:
+\begin{itemize}
+\item Как передать массив объектов произвольного типа?
+\pause
+\item Как переставить (\mintinline{cpp}|swap|) местами объекты произвольного типа?
+\pause
+\item Как сравнить (\mintinline{cpp}|compare|) объекты произвольного типа?
+\end{itemize}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{void*}
+\begin{itemize}
+\item \mintinline{cpp}|void| -- особый тип данных в C
+\pause
+\item У него нет значений (функция, возвращающая \mintinline{cpp}|void|, ничего не возвращает)
+\pause
+\item \mintinline{cpp}|void*| обычно используется как указатель на неизвестный тип (для него запрещена арифметика указателей)
+\pause
+\item Любой тип указателя приводится к \mintinline{cpp}|void*| и обратно (в C++ для обратного преобразования нужно явное приведение типа)
+\pause
+\item Некоторые функции (например, выделение памяти -- \mintinline{cpp}|malloc|) возвращают \mintinline{cpp}|void*|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{void*}
+\begin{itemize}
+\item Мы можем использовать \mintinline{cpp}|void*|, чтобы принимать массив, который нам нужно отсортировать:
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+void sort(void *array, size_t count, ...);
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Перестановка объектов (swap)}
+\begin{itemize}
+\item Будем считать, что перестановка сводится к перестановке байт объектов
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+void sort(void *array, size_t count, size_t elem_size, ...) {
+  char *ptr = array;
+
+  ...
+  swap(array + i * elem_size, array + j * elem_size, elem_size);
+  ...
+}
+
+void swap(char *p1, char *p2, size_t elem_size) {
+  char *end1 = p1 + elem_size;
+  while (p1 != end1) {
+    ...
+  }
+}
+\end{tcblisting}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Сравнение объектов (compare)}
+\begin{itemize}
+\item Для сравнения разных типов данных нужен разный код:
+\pause
+\begin{itemize}
+\item Сравнение \mintinline{cpp}|int| -- оператор целочисленного сравнения
+\pause
+\item Сравнение \mintinline{cpp}|float| -- оператор floating-point сравнения
+\pause
+\item Сравнение строк (\mintinline{cpp}|const char*|) -- лексикографическое сравнение циклом (\mintinline{cpp}|strcmp|)
+\pause
+\item Сравнение структур \mintinline{cpp}|struct product_t| по значению поля \mintinline{cpp}|weight| -- доступ к полю + оператор сравнения
+\end{itemize}
+\pause
+\item Как передать в функцию \mintinline{cpp}|sort| произвольный код?
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Указатели на функции}
+\begin{itemize}
+\item Скомпилированный (бинарный) код программы -- тоже числа, и они хранятся где-то в памяти
+\pause
+\begin{itemize}
+\item Гарвардская архитектура: данные и код хранятся в разных типах памяти
+\pause
+\item Архитектура фон Неймана: данные и код хранятся в одной и той же памяти
+\end{itemize}
+\pause
+\item Так как это тоже память, у неё тоже есть адрес, и на неё тоже можно взять указатель
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Указатели на функции}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int add3(int x) {
+  return x + 3;
+}
+
+int main() {
+  // Объявление указателя на функцию
+  // Похоже на объявление функции, но со звёздочкой
+  int (*func)(int);
+
+  // Эти две строчки эквивалентны
+  func = &add3;
+  func = add3;
+
+  // Указатель на функцию можно вызвать так же, как
+  // обычную функцию
+  int x = func(5);
+}
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Указатели на функции}
+\begin{itemize}
+\item На любую функцию можно взять указатель (но только на саму функцию, а не на произвольное место в коде)
+\pause
+\item Указатели типизированные -- знают, какие у функции аргументы и возвращаемое значение
+\pause
+\item Для указателей на функцию нет арифметики указателей
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Сравнение объектов (compare)}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+void sort(void *array, size_t count, size_t elem_size,
+  int (*compare)(void*, void*)) {
+  ...
+}
+
+int compare_int(void *p1, void *p2) {
+  return *(int *)p1 - *(int *)p2;
+}
+
+int compare_product(void *p1, void *p2) {
+  return ((product_t*)p1)->weight - ((product_t*)p2)->weight;
+}
+
+
+int array[100];
+sort(array, 100, sizeof(int), compare_int);
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Виды памяти}
+\begin{itemize}
+\item \textbf{Стек (stack)}
+\begin{itemize}
+\item Локальные переменные, параметры функций, адрес возврата
+\item Код для выделения и освобождения генерирует компилятор
+\item Выделяется при входе в функцию, освобождается при выходе
+\end{itemize}
+\pause
+\item \textbf{Глобальная (статическая, static) память}
+\begin{itemize}
+\item Глобальные и статические переменные
+\item Код для выделения и освобождения генерирует компилятор
+\item Выделяется при старте программы, освобождается при её окончании
+\end{itemize}
+\pause
+\item \textbf{Динамическая память (куча, heap)}
+\begin{itemize}
+\item Полностью управляется программистом
+\end{itemize}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Адресное пространство}
+\begin{itemize}
+\item Точное устройство адресного пространства зависит от системы
+\item Упрощённый современный линукс:
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+┌───────┬───────────┬────────────┬────────────────┬────────────────┐
+│  0x0  │ 0x400000  │ 0x40xxxx   │ 0x5xxxxxxxxxxx │ 0x7ffxxxxxxxxx │
+│       │           │            │                │                │
+│       │   Код     │ Глобальные │  Куча (растёт  │  Стек (растёт  │
+│ Пусто │ программы │ переменные │    туда ->)    │    <- туда)    │
+└───────┴───────────┴────────────┴────────────────┴────────────────┘
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Стек}
+\begin{itemize}
+\item Выделяется операционной системой при запуске прграммы (напр. 8 Мб)
+\pause
+\item Растёт ``вниз'' (в сторону меньших адресов)
+\pause
+\item Используется в основном для вызова функций
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Стек}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int sum(int a, int b) {
+  return a + b;
+}
+
+int main() {
+  int c = 1, d = 2;
+  int e = sum(c, d);
+  return 0;
+}
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\begin{itemize}
+\item При вызове функции нужно
+\begin{itemize}
+\item Выделить место под её аргументы
+\item Выделить место под её локальные переменные
+\item Выделить место под её возвращаемое значение
+\item Куда-то положить адрес возврата (куда должен вернуться \mintinline{cpp}|return|)
+\end{itemize}
+\pause
+\item \(\Longrightarrow\) \textit{стек фрейм (stack frame)}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Стек}
+\begin{itemize}
+\item Стек состоит из \textit{фреймов} для всех вызванных в текущий момент функций (включая функции, вызвавшие другие функции)
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+┌────────────────────────────────────┐
+│                [main]              │
+│ c = 1                              │
+│ d = 2                              │
+│ e = (uninitialized)                │
+│ return address = ??? (libc)        │
+├────────────────────────────────────┤
+│                [sum]               │
+│ a = 1                              │
+│ b = 2                              │
+│ return address = 0x40143 (main+10) │
+└────────────────────────────────────┘
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Стек}
+\begin{itemize}
+\item Размер стек фрейма легко вычислить компилятору -- он знает количество аргументов и локальных переменных
+\pause
+\item Адрес текущей вершины стека хранится в специальном регистре SP (stack pointer)
+\pause
+\item Выделить N байт на стеке -- то же самое, что сделать \mintinline{cpp}|SP -= N|, т.е. \underline{очень быстро}
+\pause
+\item \(\Longrightarrow\) создание локальных переменных -- \underline{крайне быстрая} операция
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Стек vs регистры}
+\begin{itemize}
+\item Читать/писать в стек быстро, но это всё равно работа с памятью
+\pause
+\item Быстрее -- передавать параметры и возвращаемое значение через регистры процессора (если они влезут)
+\pause
+\item Договорённость о том, какие регистры под это использовать, является частью т.н. \textit{calling convention}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Стек и рекурсия}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int factorial(int n) {
+  if (n == 0) {
+    return 1;
+  }
+  return n * factorial(n - 1);
+}
+\end{tcblisting}
+\pause
+\begin{itemize}
+\item Каждый рекурсивный вызов выделяет свой фрейм
+\pause
+\item Если глубина рекурсии слишком большая, память стека закончится и программа упадёт с ошибкой \textit{stack overflow}
+\pause
+\item Почти всегда либо глубина ограничена свойствами структуры данных (напр. \(O(\log n)\) у деревьев), либо алгоритм можно переписать в виде цикла вместо рекурсии
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Факториал без рекурсии}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int factorial(int n) {
+  int result = 1;
+  while (n > 0) {
+    result *= n;
+    --n;
+  }
+  return result;
+}
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Хвостовая рекурсия}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int factorial(int n, int result) {
+  if (n == 0) {
+    return result;
+  }
+  return factorial(n - 1, result * n);
+}
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\begin{itemize}
+\item Если рекурсивный вызов это \textbf{самая последняя операция} перед \mintinline{cpp}|return|, компилятор может переиспользовать фрейм текущей функции и не выделять новый
+\pause
+\item Эта оптимизация называется \textit{хвостовой рекурсией (tail call optimization)}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Глобальные переменные}
+\begin{itemize}
+\item Переменные, объявленные снаружи любой функции, называются глобальными
+\pause
+\item Они находятся в отдельной области памяти, и живут в течении всей жизни программы
+\end{itemize}
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int random_seed = 0;
+
+void set_seed(int seed) {
+  random_seed = seed;
+}
+
+int random() {
+  random_seed = (random_seed * 13 + 113) % 43;
+  return random_seed;
+}
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Глобальные переменные}
+\begin{itemize}
+\item Объявить одну и ту же глобальную переменную в нескольких файлах -- ошибка multiple definition
+\pause
+\item Можно исправить, пометив одно из объявлений как \mintinline{cpp}|extern|
+\end{itemize}
+\begin{multicols}{2}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// a.cpp
+
+// Аналог определения
+// (definition) функции
+int global = 0;
+\end{tcblisting}
+\columnbreak
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// b.cpp
+
+// Аналог объявления
+// (declaration) функции
+extern int global;
+\end{tcblisting}
+\end{multicols}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Глобальные переменные + static}
+\begin{itemize}
+\item Глобальная переменная, объявленная со словом \mintinline{cpp}|static|, видна \textbf{только в этом файле} и не приводит к ошибке линковки
+\end{itemize}
+\begin{multicols}{2}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// a.cpp
+
+
+
+static int global = 0;
+\end{tcblisting}
+\columnbreak
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// b.cpp
+
+// Ошибки нет: в каждом файле
+// своя переменная global
+static int global = 0;
+\end{tcblisting}
+\end{multicols}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Статические переменные}
+\begin{itemize}
+\item Переменные внутри функции, объявленные со словом \mintinline{cpp}|static|
+\item Живут вместе с глобальными переменными, но доступны только внутри этой функции
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+void foo() {
+  // Инициализируется один раз
+  // Значение сохраняется даже после выхода из функции
+  static int call_count = 0;
+
+  printf("I was called %i times\n", call_count);
+  ++call_count;
+}
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Глобальные переменные}
+\begin{itemize}
+\item При компиляции компилятор может легко посчитать, сколько памяти нужно под все глобальные/статические переменные в этом файле
+\pause
+\item При линковке линкофщик может легко просуммировать необходимую память под все глобальные/статические переменные всех файлов
+\pause
+\item Эта память выделится в начале работы программы и освободится при её завершении
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Глобальные переменные: недостатки}
+\begin{itemize}
+\item Потенциальный конфликт имён, если два программиста завели в разных частях программы одинаковые глобальные переменные
+\pause
+\item Трудно анализировать, какие части программы что используют и на что могут повлиять
+\pause
+\item Порядок инициализации глобальных переменных в рамках всей программы \textbf{не определён} (только в рамках одного файла)
+\pause
+\item Считаются плохим тоном/антипаттерном, рекомендуется их не использовать без крайней необходимости
+\end{itemize}
+\end{frame}
+
+\end{document}
