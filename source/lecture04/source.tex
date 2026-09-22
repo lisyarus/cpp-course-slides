@@ -1,0 +1,528 @@
+% (c) Nikita Lisitsa, lisyarus@gmail.com, 2026
+
+\documentclass[10pt]{beamer}
+
+\usepackage[T2A]{fontenc}
+\usepackage[russian]{babel}
+\usepackage{minted}
+
+\usepackage[most]{tcolorbox}
+\tcbuselibrary{minted}
+
+\usepackage{graphicx}
+\graphicspath{ {./images/} }
+
+\usepackage{adjustbox}
+
+\usepackage{color}
+\usepackage{soul}
+\usepackage{multicol}
+\usepackage{multirow}
+\usepackage{hyperref}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc}
+
+\usetheme{metropolis}
+
+\definecolor{red}{rgb}{1,0,0}
+\definecolor{codebg}{RGB}{29,35,49}
+\setminted{fontsize=\footnotesize}
+
+\makeatletter
+\newcommand{\slideimage}[1]{
+  \begin{figure}
+    \begin{adjustbox}{width=\textwidth, totalheight=\textheight-2\baselineskip-2\baselineskip,keepaspectratio}
+      \includegraphics{#1}
+    \end{adjustbox}
+  \end{figure}
+}
+\makeatother
+
+\title{Язык программирования C}
+\subtitle{Лекция 4: динамическая память (куча), структуры}
+\author{Лисица Никита}
+\date{2026}
+
+\setbeamertemplate{footline}[frame number]
+
+\usemintedstyle{tango}
+
+\begin{document}
+
+\frame{\titlepage}
+
+\begin{frame}[fragile]
+\frametitle{Напоминание: три вида памяти}
+\begin{itemize}
+\item \textbf{Стек}: выделяется на старте программы, размер предопределён (стек фреймы ``выделяет'' на стеке компилятор)
+\pause
+\item \textbf{Глобальная память}: выделяется на старте программы, размер известен на момент компиляции (память, нужная под все глобальные переменные)
+\pause
+\item \textbf{Динамическая память (куча)}: выделяется программистом, размер произвольный
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Динамическая память (куча)}
+\begin{itemize}
+\item \mintinline{cpp}|void* malloc(size_t size);| -- выделяет \underline{непрерывный} кусок памяти размером \mintinline{cpp}|size| байт
+\pause
+\item \mintinline{cpp}|void free(void *ptr);| -- возвращает память системе для переиспользования
+\pause
+\item Если не удалось выделить память (напр. закончилась свободная память в системе), \mintinline{cpp}|malloc| возвращает \textit{нулевой указатель}: \mintinline{cpp}|NULL|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Динамическая память (куча)}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Выделить память под миллион объектов типа int
+int *p = malloc(1000000 * sizeof(int));
+
+// То же самое: if (!p)
+if (p == NULL) {
+  // Обработаем нехватку памяти
+}
+
+// Можем использовать p как указатель на массив:
+for (size_t i = 0; i < 1000000; ++i) {
+  p[i] = i * i;
+}
+
+// Освобождаем память
+free(p);
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Динамическая память (куча)}
+\begin{itemize}
+\item Размер выделяемой памяти может быть полностью динамическим (введён пользователем, вычислен на основе других данных, и т.п.) -- невозможно для стека и глобальных переменных
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+size_t size;
+scanf("%zu", &size);
+
+char *p = malloc(size);
+
+// Как-то используем p...
+
+free(p);
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Динамическая память (куча)}
+\begin{itemize}
+\item Как правило, маленькие объекты нет смысла хранить в куче -- их дешевле скопировать
+\pause
+\item \mintinline{cpp}|int *p = malloc(sizeof(int));| -- тратим 4 байта на сам int (в куче) и 8 байт на указатель (на стеке)
+\pause
+\begin{itemize}
+\item И ещё 8-16 байт в куче для метаданных аллокатора :)
+\end{itemize}
+\pause
+\item C и C++ позволяют явно управлять расположением объекта в памяти -- этим стоит пользоваться :)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Утечки памяти}
+\begin{multicols}{2}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int foo(size_t size) {
+  int *p = malloc(size);
+  // Что-то посчитали
+  // Забыли вызвать free
+  return p[0];
+}
+\end{tcblisting}
+\columnbreak
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int *p = malloc(size);
+// Что-то посчитали
+// Забыли вызвать free
+
+// Перевыделили память
+p = malloc(new_size);
+\end{tcblisting}
+\end{multicols}
+\usemintedstyle{tango}
+\begin{itemize}
+\item \textit{Утечка памяти}: мы ``потеряли'' значение указателя на выделенную область \(\Longrightarrow\) не можем её освободить (нам не от чего вызвать \mintinline{cpp}|free|)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Утечки памяти}
+\begin{itemize}
+\item При завершении программы память автоматически вернётся системе, зачем её освобождать?
+\pause
+\item Многие программы работают продолжительное время (браузер, сервер, игра), и память действительно может закончиться
+\pause
+\item Код, который вы пишете для ``одноразовой'' программы, потом могут переиспользовать для другого проекта
+\pause
+\item Для поиска утечек есть много инструментов: \textbf{Valgrind}, \textbf{Address Sanitizer}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Динамическая память (куча)}
+\begin{itemize}
+\item \mintinline{cpp}|malloc|/\mintinline{cpp}|free| реализованы в стандартной библиотеке C
+\pause
+\item Они используют специальные потокобезопасные структуры данных, чтобы
+\begin{itemize}
+\item Выделять новые участки памяти
+\item Переиспользовать старые
+\item Выполнять дефрагментацию (склеивать соседние неиспользуемые участки)
+\end{itemize}
+\pause
+\item \(\Longrightarrow\) Выделение динамической памяти занимает некоторое время (сотни наносекунд / десятки микросекунд)
+\pause
+\item \(\Longrightarrow\) Лучше выделять и переиспользовать большой кусок памяти, чем выделять много маленьких объектов
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Двумерный массив на куче: вариант 1}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int **m = malloc(N * sizeof(int*));
+for (int i = 0; i < N; ++i)
+  m[i] = malloc(N * sizeof(int));
+
+// Можем работать с m[i][j]
+
+// Очищать придётся циклом
+for (int i = 0; i < N; ++i)
+  free(m[i]);
+free(m);
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Двумерный массив на куче: вариант 2}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int **m = malloc(N * sizeof(int*));
+m[0] = malloc(N * N * sizeof(int));
+for (int i = 1; i < N; ++i)
+  m[i] = m[0] + i * N;
+
+// Можем работать с m[i][j]
+
+free(m[0]);
+free(m);
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Двумерный массив на куче: вариант 3}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int *m = malloc(N * N * sizeof(int));
+
+// Для обращения к элементу (i,j) придётся явно вычислить его адрес
+// Обычно это быстрее, чем прочитать адрес строки m[i] из памяти
+m[i * N + j] = 42;
+
+free(m);
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Динамическая память (куча)}
+\begin{itemize}
+\item \mintinline{cpp}|calloc| -- выделить память и заполнить нулями (нулевыми байтами)
+\pause
+\item \mintinline{cpp}|realloc| -- \textit{попробовать} увеличить размер уже выделенного куска
+\pause
+\begin{itemize}
+\item Если после него есть свободная память, увеличит размер и вернёт тот же указатель
+\pause
+\item Если после него нет свободной памяти, выделит новый кусок нужного размера, скопирует туда старые данные, и освободит старый кусок
+\end{itemize}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Структуры}
+\begin{itemize}
+\item Часто хочется объединить несколько переменных в одну логическую единицу:
+\pause
+\begin{itemize}
+\item Точка в пространстве: 3 числа \mintinline{cpp}|float x, y, z;|
+\pause
+\item Ребро взвешенного графа: \mintinline{cpp}|int start, end; float weight;|
+\pause
+\item Вершина бинарного дерева: \mintinline{cpp}|node *left, *right; int data;|
+\pause
+\item Состояние тайла 2D игры: \mintinline{cpp}|int terrain; bool has_road;|
+\end{itemize}
+\pause
+\item В языке C для этого есть встроенный механизм: \textit{структуры}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Структуры}
+\usemintedstyle{lightbulb}
+\begin{multicols}{2}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+struct point_3d {
+  float x, y, z;
+};
+\end{tcblisting}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+struct node {
+  struct node *left;
+  struct node *right;
+  int data;
+}
+\end{tcblisting}
+\columnbreak
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+struct edge {
+  int start, end;
+  float weight;
+};
+\end{tcblisting}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+struct tile {
+  int terrain;
+  bool has_road;
+};
+\end{tcblisting}
+\end{multicols}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Структуры}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Объявить переменную типа структуры
+struct edge e;
+
+// Прочитать поля структуры из файла
+scanf("%d %d %f", &e.start, &e.end, &e.weight);
+
+// Завести массив структур
+struct edge e[10];
+e[4].start = 15;
+
+// Выделить динамический массив структур
+struct edge *e = malloc(100 * sizeof(struct edge));
+
+// Обращение к полю через указатель
+// (эквивалентные способы)
+e[0].weight = 1.412f;
+(*e).weight = 3.1415f;
+e->weight = 2.71828f;
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Структуры: инициализация}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Инициализация:
+struct edge e = { 10, 15, 1.2345f };
+
+// Designated инициализация:
+struct edge e = {
+  .start = 10,
+  .end = 15,
+  .weight = 1.2345f,
+};
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Структуры: копирование}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+struct edge e1 = { 10, 15, 1.2345f };
+
+// Полностью копирует все поля
+struct edge e2 = e1;
+
+// Тоже копирует все поля
+e1 = e2;
+
+e1.weight *= 2.f;
+
+// Выведет разные значения
+printf("%f %f", e1.weight, e2.weight);
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Структуры: копирование}
+\usemintedstyle{lightbulb}
+\begin{itemize}
+\item Если в структуре хранится указатель, то скопируется само \textit{значение указателя}, а не данные, на которые он указывает
+\end{itemize}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+struct array {
+  int *data;
+  int size;
+};
+
+struct array a = {
+  .data = malloc(100 * sizeof(int)),
+  .size = 100,
+};
+
+// b.data указывает на ту же память!
+struct array b = a;
+
+b.data[0] = 42;
+printf("%i", a.data[0]); // выведет 42
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Структуры: память}
+\usemintedstyle{lightbulb}
+\begin{itemize}
+\item Как и все объекты, структуры в C можно хранить на стеке (локальная переменная), в глобальной памяти (глобальная/статическая переменная), или на куче (выделена через \mintinline{cpp}|malloc|)
+\pause
+\item Во многих других языках (Java, C\#, Python) составные объекты могут храниться только в куче
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Структуры и функции}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+struct big_struct {
+  char name[1024];
+  int values[256];
+};
+
+struct big_struct foo(struct big_struct value) {
+  // ...
+}
+\end{tcblisting}
+\pause
+\begin{itemize}
+\item Для передачи структуры в фунцию придётся выделить на стеке место и скопировать туда аргумент функции
+\pause
+\item Для возвращения структуры из фунции придётся сделать то же самое
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Структуры и функции}
+\begin{itemize}
+\item В таких случаях лучше передавать указатель на структуру:
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+struct big_struct {
+  char name[1024];
+  int values[256];
+};
+
+void foo(struct big_struct *ptr) {
+  // ...
+}
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Структуры: typedef}
+\begin{itemize}
+\item Писать каждый раз \mintinline{cpp}|struct my_struct| надоедает :)
+\pause
+\item Вместо этого можно сделать \mintinline{cpp}|typedef| -- синоним типа для структуры
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Новое имя для типа int
+typedef int vertex_id;
+
+// Новое имя для типа указателя на функцию
+typedef int (*my_func_type)(int, int);
+
+struct my_struct_t {
+  char name[64];
+  float weight;
+};
+
+// Новое имя для типа структуры
+typedef struct my_struct my_struct;
+
+// Теперь можно не писать struct!
+my_struct x = { "Hello", 6.7f };
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Структуры: typedef}
+\begin{itemize}
+\item \mintinline{cpp}|typedef| и объявление структуры можно объединить в одно объявление:
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+typedef struct my_struct {
+  char name[64];
+  float weight;
+} my_struct;
+
+// Или даже так:
+typedef struct {
+  char name[64];
+  float weight;
+} my_struct;
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Структуры: typedef}
+\begin{itemize}
+\item Не стоит называть структуры в духе \mintinline{cpp}|my_struct_t|: стандарт POSIX резервирует все имена, заканчивающиеся на \mintinline{cpp}|_t| -- можем случайно пересечься с именами под Linux/macOS
+\pause
+\item Чем \mintinline{cpp}|typedef| лучше, чем директива препроцессора \mintinline{cpp}|#define|? \pause \mintinline{cpp}|#define| применяется ко всем идентификаторам, а \mintinline{cpp}|typedef| -- только к \textit{типам}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Структуры: выравнивание}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+struct test {
+  int i;
+  char c;
+};
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\begin{itemize}
+\item Чему будет равно \mintinline{cpp}|sizeof(struct test)|? \pause На большинстве платформ -- 8:
+\begin{itemize}
+\item 4 байта на \mintinline{cpp}|int i|
+\item 1 байт на \mintinline{cpp}|char c|
+\item 3 байта на \textit{padding}
+\end{itemize}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Структуры: выравнивание}
+\begin{itemize}
+\item Компилятор может сгенерировать более эффективный код, если адрес объекта типа \mintinline{cpp}|int| кратен 4 байтам (``выровнен'' на 4 байта)
+\pause
+\begin{itemize}
+\item Обычно, выравнивание для примитивного типа равно его размеру
+\end{itemize}
+\pause
+\item \(\Longrightarrow\) По умолчанию компилятор вставляет дополнительные неиспользуемые байты (\textit{padding}), чтобы обеспечить это
+\end{itemize}
+\end{frame}
+
+\end{document}

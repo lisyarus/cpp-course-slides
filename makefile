@@ -7,6 +7,7 @@ all: pdf/lecture00.pdf
 all: pdf/lecture01.pdf
 all: pdf/lecture02.pdf
 all: pdf/lecture03.pdf
+all: pdf/lecture04.pdf
 
 all: pdf/lecture09.pdf
 all: pdf/lecture10.pdf
