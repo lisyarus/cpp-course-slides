@@ -1,0 +1,421 @@
+% (c) Nikita Lisitsa, lisyarus@gmail.com, 2026
+
+\documentclass[10pt]{beamer}
+
+\usepackage[T2A]{fontenc}
+\usepackage[russian]{babel}
+\usepackage{minted}
+
+\usepackage[most]{tcolorbox}
+\tcbuselibrary{minted}
+
+\usepackage{graphicx}
+\graphicspath{ {./images/} }
+
+\usepackage{adjustbox}
+
+\usepackage{color}
+\usepackage{soul}
+\usepackage{multicol}
+\usepackage{multirow}
+\usepackage{hyperref}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc}
+
+\usetheme{metropolis}
+
+\definecolor{red}{rgb}{1,0,0}
+\definecolor{green}{rgb}{0,0.5,0}
+\definecolor{codebg}{RGB}{29,35,49}
+\setminted{fontsize=\footnotesize}
+
+\makeatletter
+\newcommand{\slideimage}[1]{
+  \begin{figure}
+    \begin{adjustbox}{width=\textwidth, totalheight=\textheight-2\baselineskip-2\baselineskip,keepaspectratio}
+      \includegraphics{#1}
+    \end{adjustbox}
+  \end{figure}
+}
+\makeatother
+
+\title{Язык программирования C}
+\subtitle{Лекция 5: стандартная библиотка, ввод-вывод}
+\author{Лисица Никита}
+\date{2026}
+
+\setbeamertemplate{footline}[frame number]
+
+\usemintedstyle{tango}
+
+\begin{document}
+
+\frame{\titlepage}
+
+\begin{frame}[fragile]
+\frametitle{Стандартная библиотека}
+\begin{itemize}
+\item Набор полезной функциональности, поставляемый вместе с компилятором языка C:
+\begin{itemize}
+\item \mintinline{cpp}|stdio.h| -- ввод/вывод (файлы, клавиатура, экран)
+\item \mintinline{cpp}|stdlib.h| -- выделение памяти, различные алгоритмы
+\item \mintinline{cpp}|string.h| -- работа со строками, массивами
+\item \mintinline{cpp}|math.h| -- математические функции
+\item \mintinline{cpp}|time.h| -- работа со временем
+\end{itemize}
+\pause
+\item Код стандартной библиотеки десятки лет тестировался и улучшался \(\Longrightarrow\) лучше использовать её функции, а не писать свои (разве что в образовательных целях)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Стандартная библиотека}
+\begin{itemize}
+\item Сам бинарный файл стандартной библиотеки называется по-разному в разных системах:
+\begin{itemize}
+\item Linux: \mintinline{text}|libc.so|
+\item macOS: \mintinline{text}|libSystem.B.dylib|
+\item Windows: \mintinline{text}|ucrtbase.dll|
+\end{itemize}
+\pause
+\item Компилятор сам это знает, нам его подставлять руками не нужно :)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{О работе с устройствами}
+\begin{itemize}
+\item Память, клавиатура, экран, и т.п. -- отдельные от CPU устройства
+\pause
+\item Операционная система не даёт к ним прямого доступа, вместо этого мы можем использовать \textit{системные вызовы} с помощью особой инструкции процессора (\mintinline{cpp}|syscall| на x86\_64)
+\pause
+\item Делать системные вызовы руками очень неудобно (для этого нужно писать на языке ассемблера), и стандартная библиотека оборачивает их в более удобный для программирования интерфейс
+\pause
+\item Например, чтение файла может выполняться так:
+\pause
+\begin{itemize}
+\item Программа на C: \mintinline{cpp}|fread(...)|
+\pause
+\item \(\rightarrow\) Стандартная библиотека: \mintinline{cpp}|read syscall|
+\pause
+\item \(\rightarrow\) Операционная система: обращается напрямую к устройству
+\end{itemize}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Работа с файлами}
+\begin{itemize}
+\item Стандартная библиотека C работает с файлами как с указателями на специальные структуры \mintinline{cpp}|FILE*|
+\pause
+\item \mintinline{cpp}|struct FILE| внутри хранит
+\pause
+\begin{itemize}
+\item \textit{Файловый дескриптор} -- число, идентифицирующее открытый файл в ОС
+\pause
+\item Временный буфер, использующийся для чтения/записи (чтобы не читать/писать по одному байту)
+\pause
+\item Текущее состояние -- положение в файле, состояние ошибки, флаг конца файла
+\end{itemize}
+\pause
+\item Напрямую доступа к этим полям нет, нужно использовать соответствующие функции из \mintinline{cpp}|stdio.h|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Работа с файлами}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Открыть файл на диске
+FILE *f1 = fopen("in.txt", ...);
+
+// Стандартный ввод: то, что мы вводим с клавиатуры
+FILE *f2 = stdin;
+
+// Стандартный вывод: то, что печатается в терминале
+FILE *f3 = stdout;
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Текстовые и бинарные форматы}
+\begin{itemize}
+\item На физическом диске хранятся просто байты, их интерпретация -- вопрос конкретной программы и конкретного формата файла
+\pause
+\item Текстовые форматы:
+\pause
+\begin{itemize}
+\item Интерпретируются, как последовательность текстовых символов: например, число \mintinline{cpp}|100| представляется тремя байтами \mintinline{cpp}|'1', '0', '0'|
+\pause
+\item Часто содержит спецсимволы: пробелы, табуляцию, перевод строк
+\pause
+\item {\color{green}+} Проще читать человеку
+\pause
+\item {\color{red}\texttt{-}} Сложнее читать программе, больше размер файла
+\end{itemize}
+\pause
+\item Бинарные форматы:
+\pause
+\begin{itemize}
+\item Строго следуют определённому порядку байт
+\pause
+\item Каждому байту задана его интерпретация, например число \mintinline{cpp}|100| может представляться как один байт \mintinline{cpp}|0x64|
+\pause
+\item {\color{green}+} Проще читать программе, компактный размер файла
+\pause
+\item {\color{red}\texttt{-}} Сложно читать человеку
+\end{itemize}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Работа с файлами}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+FILE* fopen(char *path, char *mode);
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\begin{itemize}
+\item \mintinline{cpp}|path| -- путь до файла
+\pause
+\item \mintinline{cpp}|mode| -- режим открытия файла, может состоять из нескольких символов:
+\pause
+\begin{itemize}
+\item Один из \mintinline{cpp}|'r'/'w'/'a'| -- открыть на чтение, на перезапись, или на дозапись в конец (при записи файл создаётся, если не существовал)
+\pause
+\item \mintinline{cpp}|'+'| -- режим ``обновления'' файла: можно и читать, и писать
+\pause
+\item \mintinline{cpp}|'x'| -- выдать ошибку, если файл открыт на запись (\mintinline{cpp}|'w'/'a'|) но не существует
+\pause
+\item \mintinline{cpp}|'b'| -- открыть файл в бинарном режиме (по умолчанию режим текстовый)
+\pause
+\item \mintinline{cpp}|'t'| -- \textbf{нестандартное расширение}: открыть файл в текстовом режиме
+\end{itemize}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Текстовый и бинарный режимы}
+\begin{itemize}
+\item В бинарном режиме файл читается/пишется, как есть, без преобразований
+\pause
+\item В текстовом режиме под Windows:
+\pause
+\begin{itemize}
+\item При чтении перевод строки \mintinline{cpp}|"\r\n"| превращается в \mintinline{cpp}|"\n"|, при записи -- наоборот
+\pause
+\item Особое значение байта \mintinline{cpp}|0x1a| означает конец файла
+\end{itemize}
+\pause
+\item В текстовом режиме под другими платформами:
+\pause
+\begin{itemize}
+\item Ничего особого не происходит :)
+\end{itemize}
+\pause
+\item Не важно при работе с текстовыми форматами
+\pause
+\item При работе с бинарными форматами \textbf{обязательно} нужно указывать флаг \mintinline{cpp}|"b"|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Работа с файлами}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+FILE *file = fopen("my_file.txt", "r");
+if (file == NULL) {
+  // Обработаем ошибку открытия файла
+}
+
+// Работаем с файлом...
+
+// Закрываем файл
+fclose(file);
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\begin{itemize}
+\item Зачем закрывать файл, если при закрытии программы ОС его закроет сама?
+\pause
+\item На \mintinline{cpp}|struct FILE| тратится память
+\pause
+\item Число файловых дескрипторов на один процесс ограничено
+\pause
+\item Открытый файл нельзя удалить
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Бинарные файлы}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Прочитать count объектов, каждый по size байт,
+// из файла в буфер dst_buf
+size_t fread(void *dst_buf, size_t size, size_t count, FILE *file);
+
+// Записать count объектов, каждый по size байт,
+// из буфера src_buf в файл
+size_t fwrite(void *src_buf, size_t size, size_t count, FILE *file);
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\begin{itemize}
+\item Почему не просто количество байт?
+\pause
+\item Функции возвращают количество прочитанных/записанных \textit{объектов}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Бинарные файлы}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Открыли на чтение в бинарном режиме
+FILE *file1 = fopen("in.bin", "rb");
+
+// Открыли на запись в бинарном режиме
+FILE *file2 = fopen("out.bin", "wb");
+
+int array[100];
+
+// Прочитали 100 int'ов из файла в массив
+fread(array, sizeof(int), 100, file1);
+
+// Записали 100 int'ов из массива в файл
+fwrite(array, sizeof(int), 100, file2);
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Текстовые файлы}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Открыли на чтение в текстовом режиме
+FILE *file1 = fopen("in.text", "r");
+
+// Открыли на запись в текстовом режиме
+FILE *file2 = fopen("out.txt", "w");
+
+int i = 0;
+float f = 0.f;
+
+// Прочитать целое число и число с плавающей
+// точкой из файла в текстовом формате
+fscanf(file1, "%i %f", &i, &f);
+
+// Записать их в другой файл, тоже в 
+// текстовом формате
+fprintf(file2, "%i %f", i, f);
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\begin{itemize}
+\item Тоже возвращают количество прочитанных/записанных \textit{объектов}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Текстовые файлы}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+char string[256];
+fscanf(file, "%s", str);
+\end{tcblisting}
+\begin{itemize}
+\item Прочитает всё до первого \textit{whitespace} символа: пробела/табуляции/перевода строки
+\pause
+\item В чём проблема такого кода? \pause Мы не знаем заранее размер строки, и \mintinline{cpp}|fscanf| не знает размер нашего буфера
+\pause
+\item Альтернативы:
+\pause
+\usemintedstyle{tango}
+\begin{itemize}
+\item \mintinline{cpp}|fgets(string, 255, file)|
+\pause
+\item \mintinline{cpp}|fscanf(file, "%255s", string)|
+\pause
+\item \mintinline{cpp}|fscanf_s(file, "%s", string, 255)|
+\end{itemize}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{printf/fprintf/sprintf}
+\begin{itemize}
+\item Функции \mintinline{cpp}|printf/scanf| работают со \textit{стандартными потоками} ввода/вывода (stdin/stdout)
+\pause
+\item Функции \mintinline{cpp}|fprintf/fscanf| работают с произвольными файлами
+\pause
+\item Функции \mintinline{cpp}|sprintf/sscanf| работают со строками
+\end{itemize}
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int a, b;
+char str1[] = "3 4";
+sscanf(str1, "%d %d", &a, &b);
+
+char str2[256];
+sprintf(str2, "%d + %d = %d", a, b, c);
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Конец файла, ошибки}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+while (true) {
+  fread(...);
+
+  if (feof(file)) {
+    // Конец файла
+    break;
+  }
+
+  if (ferror(file)) {
+    // Обработаем ошибку
+  }
+
+  ...
+}
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\begin{itemize}
+\item \mintinline{cpp}|feof(file)| возвращает состояние флага EOF (End Of File)
+\pause
+\item \mintinline{cpp}|ferror(file)| возвращает состояние ошибок (узнать саму ошибку можно через \mintinline{cpp}|errno|, про это поговорим позже)
+\pause
+\item Флаги выставляются \textbf{при попытке чтения}: сначала мы попробуем прочитать за концом файла, и только потом выставится флаг EOF
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Буферизация, flush}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int main() {
+  FILE *file = fopen("file.txt", "w");
+  fprintf(file, "%i", 42);
+
+  // Произошла какая-то ошибка
+  if (some_error) {
+    return 0;
+  }
+
+  // Нормальное завершение
+  fclose(file);
+  return 0;
+}
+\end{tcblisting}
+\usemintedstyle{tango}
+\begin{itemize}
+\item В чём проблема кода? \pause Записанные данные лежат в промежуточном буфере в \mintinline{cpp}|struct FILE|, и могут не попасть на диск
+\pause
+\item Можно явно вызвать \mintinline{cpp}|fflush(file)| -- это форсирует сброс данных на диск
+\end{itemize}
+\end{frame}
+
+\end{document}
