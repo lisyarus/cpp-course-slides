@@ -1,0 +1,553 @@
+% (c) Nikita Lisitsa, lisyarus@gmail.com, 2026
+
+\documentclass[10pt]{beamer}
+
+\usepackage[T2A]{fontenc}
+\usepackage[russian]{babel}
+\usepackage{minted}
+
+\usepackage[most]{tcolorbox}
+\tcbuselibrary{minted}
+
+\usepackage{graphicx}
+\graphicspath{ {./images/} }
+
+\usepackage{adjustbox}
+
+\usepackage{color}
+\usepackage{soul}
+\usepackage{multicol}
+\usepackage{multirow}
+\usepackage{hyperref}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc}
+
+\usetheme{metropolis}
+
+\definecolor{red}{rgb}{1,0,0}
+\definecolor{green}{rgb}{0,0.5,0}
+\definecolor{codebg}{RGB}{29,35,49}
+\setminted{fontsize=\footnotesize}
+
+\makeatletter
+\newcommand{\slideimage}[1]{
+  \begin{figure}
+    \begin{adjustbox}{width=\textwidth, totalheight=\textheight-2\baselineskip-2\baselineskip,keepaspectratio}
+      \includegraphics{#1}
+    \end{adjustbox}
+  \end{figure}
+}
+\makeatother
+
+\title{Язык программирования C}
+\subtitle{Лекция 6: стандартная библиотка, const}
+\author{Лисица Никита}
+\date{2026}
+
+\setbeamertemplate{footline}[frame number]
+
+\usemintedstyle{tango}
+
+\begin{document}
+
+\frame{\titlepage}
+
+\begin{frame}[fragile]
+\frametitle{Массивы и функции}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int* get_array() {
+  int array[100];
+  for(int i = 0; i < 100; ++i) {
+    array[i] = i;
+  }
+  return array;
+}
+
+int main() {
+  int *array = get_array();
+  printf("%d", array[0]);
+}
+\end{tcblisting}
+\usemintedstyle{tango}
+\begin{itemize}
+\item Что в этом коде не так? \pause \mintinline{cpp}|array| -- локальная переменная: она живёт на стеке, и будет ``удалена'' после выхода из функции \mintinline{cpp}|get_array()|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Массивы и функции}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int* get_array() {
+  int *array = malloc(100 * sizeof(int));
+  for(int i = 0; i < 100; ++i) {
+    array[i] = i;
+  }
+  return array;
+}
+
+int main() {
+  int *array = get_array();
+  printf("%d", array[0]);
+  free(array); // Не забываем освободить память!
+}
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\begin{itemize}
+\item \mintinline{cpp}|malloc| выделяет память в \textit{куче}, мы сами контролируем момент её освобождения
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Массивы и функции}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int remove_odd(int *src, int size, int *dst) {
+  int even_count = 0;
+  for (int i = 0; i < size; ++i) {
+    if ((src[i] % 2) == 0) ++even_count;
+  }
+  dst = malloc(even_count * sizeof(int));
+
+  int *out = dst;
+  for (int i = 0; i < size; ++i) {
+    if ((src[i] % 2) == 0) *out++ = src[i];
+  }
+
+  return even_count;
+}
+\end{tcblisting}
+\usemintedstyle{tango}
+\begin{itemize}
+\item Что в этом коде не так? \pause \mintinline{cpp}|dst| -- аргумент функции, в которую \mintinline{cpp}|result| передаётся \underline{по значению}: мы перезаписали \mintinline{cpp}|dst|, но в \mintinline{cpp}|result| осталось старое значение (\mintinline{cpp}|NULL|)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Массивы и функции}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int remove_odd(int *src, int size, int **dst) {
+  int even_count = 0;
+  for (int i = 0; i < size; ++i) {
+    if ((src[i] % 2) == 0) ++even_count;
+  }
+  *dst = malloc(even_count * sizeof(int));
+
+  int *out = *dst;
+  for (int i = 0; i < size; ++i) {
+    if ((src[i] % 2) == 0) *out++ = src[i];
+  }
+
+  return even_count;
+}
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Ключевое слово const: переменные}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+const int page_size = 4096;
+const float pi = 3.1415926535f;
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\begin{itemize}
+\item \mintinline{cpp}|const|-переменной нельзя присвоить другое значение
+\pause
+\item Защищает программиста от ошибок
+\pause
+\item Лучше выражает намерение автора кода
+\pause
+\item Облегчает оптимизацию программы для компилятора
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Ключевое слово const: аргументы функций}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+void print(const int value) {
+  ...
+}
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\begin{itemize}
+\item \mintinline{cpp}|const| относится к самому аргументу функции, т.е. к локальной переменной (а не к тому значению, которое было в него скопировано)
+\pause
+\item Как правило, смысла в этом мало -- вызывающего функцию не очень волнует, что произойдёт с \textit{копией} его данных
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Ключевое слово const: указатели}
+\begin{itemize}
+\item В случае указателей \mintinline{cpp}|const| может быть как сам указатель, так и данные, на которые он указывает
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int i = 10, j = 15;
+
+const int * pi = &i; // Указатель на константу
+*pi = 20;            // Ошибка: нельзя изменить константное значение
+pi = &j;             // Можно переприсвоить
+
+int * const pi = &i; // Константный сам указатель
+*pi = 20;            // Можно изменить значение по указателю
+pi = &j;             // Нельзя переприсвоить
+
+// Нельзя переприсвоить, нельзя перезаписать значение по указателю
+const int * const pi = &i;
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Строковые литералы}
+\begin{itemize}
+\item Следующие два способа инициализации строки делают радикально разные вещи:
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+char * str1 = "Hello!";
+char str2[] = "World!";
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\begin{itemize}
+\item Первый создаёт \underline{указатель} на строку
+\pause
+\item Вторый создаёт \underline{массив символов} с этой строкой
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Строковые литералы}
+\begin{itemize}
+\item Строки, полученные первым способом, хранятся вместе с глобальными переменными программы, и их \underline{нельзя менять}:
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+char * str = "Hello!";
+str[0] = 'A'; // Ошибка выполнения
+\end{tcblisting}
+\pause
+\begin{itemize}
+\item Строки, полученные втором способом, хранятся на стеке (как обычные переменные), и их \underline{можно менять}:
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+char str[] = "World!";
+str[0] = 'A'; // Ошибки нет
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Строковые литералы}
+\begin{itemize}
+\item Чтобы на это не попадаться, лучше объявлять такие указатели как \mintinline{cpp}|const|:
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+const char * str = "Hello!";
+
+str[0] = 'A'; // Ошибка компиляции: указатель на const
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Ключевое слово const: указатели в аргументах функций}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+size_t strlen(const char * str) {
+  ...
+}
+\end{tcblisting}
+\usemintedstyle{tango}
+\begin{itemize}
+\item Есть ли в этом смысл? \pause Да: функция явно говорит, что не изменит данные по нашему указателю, что в неё можно передать строковой литерал, и т.п.
+\pause
+\item В таких случаях лучше всегда указывать \mintinline{cpp}|const|!
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{East const vs const west}
+\begin{itemize}
+\item Ключевое слово \mintinline{cpp}|const| можно писать как слева, так и справа от типа -- для компилятора разницы нет:
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Одно и то же:
+const int x = 10;
+int const y = 20;
+
+// Одно и то же:
+const int * p = &x;
+int const * q = &y;
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\begin{itemize}
+\item \mintinline{cpp}|const| справа называют \textit{east const} (потому восток тоже справа на большинстве карт)
+\item \mintinline{cpp}|const| слева называют \textit{const west} (потому запад слева)
+\item Оба варианта распространены, это дело вкуса
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Стандартная библиотека: stdlib.h}
+\begin{itemize}
+\item \mintinline{cpp}|int atoi(const char *)| -- конвертация строки в десятичное число:
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int x = atoi("123");
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\begin{itemize}
+\item Есть \mintinline{cpp}|atol| для \mintinline{cpp}|long| и \mintinline{cpp}|atoll| для \mintinline{cpp}|long long|
+\pause
+\item Возвращает 0, если не смог сконвертировать (конкретную ошибку не выдаёт)
+\pause
+\item Undefined behavior, если значение не влезает в тип возвращаемого значения
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Стандартная библиотека: stdlib.h}
+\begin{itemize}
+\item \mintinline{cpp}|long strtol(const char *str, char** str_end, int base)| -- конвертация строки в число в любой системе счисления
+\pause
+\item Указатель на первый символ, не вошедший в число, записывается в \mintinline{cpp}|str_end|
+\end{itemize}
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+char *str = "25hello";
+char *end = NULL;
+long x = strtol(str, &end, 10);
+// end == str + 2
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Стандартная библиотека: stdlib.h}
+\begin{itemize}
+\item \mintinline{cpp}|int rand()| -- генератор случайных чисел
+\pause
+\item Разные вызовы вернут разные числа \(\Longrightarrow\) использует внутри какое-то глобальное состояние
+\pause
+\item \mintinline{cpp}|void srand(unsigned int)| -- проинициализировать состояние генератора
+\pause
+\item При инициализации через \mintinline{cpp}|srand()| одним и тем же значением гарантируется, что \mintinline{cpp}|rand()| будет выдавать одну и ту же последовательность
+\pause
+\item Не потокобезопасные функции! Лучше избегать глобального состояния и пользоваться специализированными библиотеками
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Стандартная библиотека: stdlib.h}
+\begin{itemize}
+\item Быстрая сортировка:
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+void qsort (void* ptr, size_t count, size_t size,
+  int (*compare)(const void*, const void*));
+\end{tcblisting}
+\pause
+\begin{itemize}
+\item Двоичный поиск:
+\end{itemize}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+void* bsearch(const void *key, const void *ptr, size_t count,
+  size_t size, int (*compare)(const void*, const void*));
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Стандартная библиотека: stdlib.h}
+\begin{itemize}
+\item \mintinline{cpp}|int system(const char *)| -- выполнить консольную команду и вернуть её код возврата
+\pause
+\item \mintinline{cpp}|void exit(int)| -- завершить программу с кодом возврата
+\pause
+\item \mintinline{cpp}|void abort()| -- завершить программу аварийно (не flush'ит открытые файлы и т.п.)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Стандартная библиотека: string.h}
+\begin{itemize}
+\item \mintinline{cpp}|void* memcpy(void *dst, const void *src, size_t count)| -- копирует \mintinline{cpp}|count| байт из \mintinline{cpp}|src| в \mintinline{cpp}|dst|
+\pause
+\item Крайне оптимизирована, напр. копирует большими кусками через SSE регистры
+\pause
+\item \mintinline{cpp}|char* strcpy(char *dest, const char *src)| -- скопировать строку (размер понимается через нуль-терминатор)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Стандартная библиотека: string.h}
+\begin{itemize}
+\item \mintinline{cpp}|char* strtok(char *str, const char *delim)| -- разбивает строку на части, разделённые символами из строки \mintinline{cpp}|delim|
+\pause
+\item Первый вызов задаёт строку для разбиения, последующие вызовы делаются с \mintinline{cpp}|str = NULL|
+\pause
+\item Каждый вызов выдаёт начало следущей части, в её конец \mintinline{cpp}|strtok| запишет нулевой символ (т.е. он меняет входную строку!)
+\pause
+\item Запоминает текущую строку и позицию в ней в статической переменной внутри
+\end{itemize}
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+char str[] = "To be, or not to be";
+char delim[] = " ,";
+char *p = strtok(str, delim);
+while (p != NULL) {
+  printf("%s\n", p);
+  p = strtok(NULL, delim);
+}
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Стандартная библиотека: time.h}
+\begin{itemize}
+\item \mintinline{cpp}|time_t| -- тип, хранящий время в секундах
+\pause
+\item Почти всегда -- целочисленный: число секунд с 1 января 1970 (POSIX time)
+\pause
+\item \mintinline{cpp}|time_t time(time_t *)| -- возвращает текущее время в секундах
+\pause
+\item Принимает указатель по историческим причинам, можно туда передавать \mintinline{cpp}|NULL|
+\end{itemize}
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+time_t current_time = time(NULL);
+printf("POSIX time: %llu", unsigned long long(current_time));
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Стандартная библиотека: time.h}
+\begin{itemize}
+\item \mintinline{cpp}|clock_t| -- тип, хранящий \textit{clock time} -- время, затраченное процессором на нашу программу
+\pause
+\item Точность не специфицируется; можно сконвертировать в секунды через константу \mintinline{cpp}|CLOCKS_PER_SEC|
+\pause
+\item \mintinline{cpp}|clock_t clock()| -- возвращает текущее время в \mintinline{cpp}|clock_t|
+\pause
+\item Если в программе несколько потоков, вернёт суммарное время, затраченное на всех!
+\end{itemize}
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+clock_t start = clock();
+big_slow_function();
+clock_t end = clock();
+long long duration_in_seconds = (end - start) / CLOCKS_PER_SEC;
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Стандартная библиотека: time.h}
+\begin{itemize}
+\item \mintinline{cpp}|struct timespec| -- структура, хранящая время/длительность как пару из секунд и наносекунд
+\pause
+\item \mintinline{cpp}|int timespec_get(struct timespec *result, int base)| -- вернуть текущее время в часовом поясе / временной системе \mintinline{cpp}|base|
+\end{itemize}
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+struct timespec current_time;
+timespec_get(&current_time, TIME_UTC);
+
+long long seconds     = current_time.tv_sec ;
+long long nanoseconds = current_time.tv_nsec;
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Стандартная библиотека: assert.h}
+\begin{itemize}
+\item \mintinline{cpp}|assert(...)| -- макрос, проверяющий переданное условие
+\pause
+\item В случае невыполнения условия в дебажной сборке печатает сообщение об ошибке и завершает программу
+\pause
+\item В релизной сборке ничего не делает
+\pause
+\item Позволяет на этапе разработки отловить ошибки, которые дорого проверять в релизной сборке
+\end{itemize}
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+void print_array(int *array, int size) {
+  assert(array != NULL);
+  ...
+}
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Стандартная библиотека: assert.h}
+\begin{itemize}
+\item Как \mintinline{cpp}|assert()| понимает, какая сейчас сборка?
+\pause
+\item В релизной сборке компилятор добавляет глобальный макрос \mintinline{cpp}|NDEBUG| (\textit{Not DEBUG})
+\pause
+\item В дебажной сборке не добавляет :)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Стандартная библиотека: assert.h}
+\begin{itemize}
+\item \mintinline{cpp}|assert()| стоит использовать только для ошибок программиста / логики программы, а не для валидации данных или ошибок окружения
+\end{itemize}
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+FILE *f = fopen(...);
+
+// Плохая идея! Ошибка от нас не зависит.
+// В релизной сборке такую проверку тоже
+// нужно делать!
+assert(f != NULL);
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Стандартная библиотека: stdint.h}
+\begin{center}
+  \begin{tabular}{ c c }
+    \hline
+    \mintinline{cpp}|int8_t| & \mintinline{cpp}|uint8_t| \\
+    \mintinline{cpp}|int16_t| & \mintinline{cpp}|uint16_t| \\
+    \mintinline{cpp}|int32_t| & \mintinline{cpp}|uint32_t| \\
+    \mintinline{cpp}|int64_t| & \mintinline{cpp}|uint64_t| \\
+    \hline
+    \mintinline{cpp}|intmax_t| & \mintinline{cpp}|uintmax_t| \\
+    \mintinline{cpp}|intptr_t| & \mintinline{cpp}|uintptr_t| \\
+    \hline
+  \end{tabular}
+\end{center}
+\pause
+\begin{itemize}
+\item \mintinline{cpp}|int32_t| и т.п. -- гарантированно (без-)знаковый, ровно 32 бита (не скомпилируется, если платформа такой тип не поддерживает)
+\pause
+\item \mintinline{cpp}|intmax_t| -- максимальный поддерживаемый тип
+\pause
+\item \mintinline{cpp}|intptr_t| -- тип, гарантированно вмещающий любой указатель
+\pause
+\item Полезно использовать, если важен размер переменной (для сериализации, передачи на GPU, и т.д.)
+\end{itemize}
+\end{frame}
+
+\end{document}
