@@ -1,0 +1,503 @@
+% (c) Nikita Lisitsa, lisyarus@gmail.com, 2026
+
+\documentclass[10pt]{beamer}
+
+\usepackage[T2A]{fontenc}
+\usepackage[russian]{babel}
+\usepackage{minted}
+
+\usepackage[most]{tcolorbox}
+\tcbuselibrary{minted}
+
+\usepackage{graphicx}
+\graphicspath{ {./images/} }
+
+\usepackage{adjustbox}
+
+\usepackage{color}
+\usepackage{soul}
+\usepackage{multicol}
+\usepackage{multirow}
+\usepackage{hyperref}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc}
+
+\usetheme{metropolis}
+
+\definecolor{red}{rgb}{1,0,0}
+\definecolor{green}{rgb}{0,0.5,0}
+\definecolor{codebg}{RGB}{29,35,49}
+\setminted{fontsize=\footnotesize}
+
+\makeatletter
+\newcommand{\slideimage}[1]{
+  \begin{figure}
+    \begin{adjustbox}{width=\textwidth, totalheight=\textheight-2\baselineskip-2\baselineskip,keepaspectratio}
+      \includegraphics{#1}
+    \end{adjustbox}
+  \end{figure}
+}
+\makeatother
+
+\title{Язык программирования C}
+\subtitle{Лекция 7: inline, variadic functions, статические и динамические библиотеки}
+\author{Лисица Никита}
+\date{2026}
+
+\setbeamertemplate{footline}[frame number]
+
+\usemintedstyle{tango}
+
+\begin{document}
+
+\frame{\titlepage}
+
+% \begin{frame}[fragile]
+% \frametitle{Инлайнинг}
+% \usemintedstyle{lightbulb}
+% \begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+% int* get_array() {
+%   int array[100];
+%   for(int i = 0; i < 100; ++i) {
+%     array[i] = i;
+%   }
+%   return array;
+% }
+
+% int main() {
+%   int *array = get_array();
+%   printf("%d", array[0]);
+% }
+% \end{tcblisting}
+% \usemintedstyle{tango}
+% \begin{itemize}
+% \item Что в этом коде не так? \pause \mintinline{cpp}|array| -- локальная переменная: она живёт на стеке, и будет ``удалена'' после выхода из функции \mintinline{cpp}|get_array()|
+% \end{itemize}
+% \end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Инлайнинг}
+\begin{itemize}
+\item В коде часто встречаются маленькие вспомогательные функции:
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{multicols}{2}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int max(int x, int y) {
+  return (x < y) ? y : x;
+}
+\end{tcblisting}
+\columnbreak
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+float sqr(float x) {
+  return x * x;
+}
+\end{tcblisting}
+\end{multicols}
+\pause
+\begin{itemize}
+\item При вызове такой функции больше времени тратится на сам вызов, чем на исполнение кода функции
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Инлайнинг}
+\begin{itemize}
+\item \textit{Инлайнинг (inlining)} -- оптимизация компилятора, при которой код функции подставляется целиком в место её вызова (in-line)
+\end{itemize}
+\pause
+\usemintedstyle{lightbulb}
+\begin{multicols}{2}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Было
+int a = 10, b = 20;
+int x = max(a, b);
+\end{tcblisting}
+\columnbreak
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Стало
+int a = 10, b = 20;
+int x = (a < b) ? b : a;
+\end{tcblisting}
+\end{multicols}
+\usemintedstyle{tango}
+\pause
+\begin{itemize}
+\item Компилятор \textbf{сам решает}, когда делать эту оптимизацию (зависит от включенного уровня оптимизации)
+\pause
+\item Можно форсировать специфичными для компилятора механизмами: \mintinline{cpp}|__attribute__((always_inline))| в GCC, \mintinline{cpp}|__forceinline| в MSVC
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Инлайнинг}
+\begin{itemize}
+\item Мы привыкли объявлять функции в заголовочном файле и описывать их код в \mintinline{cpp}|.c|-файле
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{multicols}{2}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize, escapeinside=||}, listing only, colback=codebg, colframe=codebg, rounded corners}
+|{\phantom{Xg}}|
+// max.h
+int max(int a, int b);
+|{\phantom{Xg}}|
+\end{tcblisting}
+\columnbreak
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// max.c
+int max(int x, int y) {
+  return (x < y) ? y : x;
+}
+\end{tcblisting}
+\end{multicols}
+\usemintedstyle{tango}
+\pause
+\begin{itemize}
+\item Сможет ли компилятор в этом случае заинлайнить вызов функции вне файла \mintinline{cpp}|max.c|? \pause Нет -- для инлайнинга нужен доступ к коду, а не только к объявлению
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Инлайнинг}
+\begin{itemize}
+\item Решение: поместим код функции прямо в заголовочный файл:
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// max.h
+int max(int a, int b) {
+  return (x < y) ? y : x;
+}
+\end{tcblisting}
+\usemintedstyle{tango}
+\pause
+\begin{itemize}
+\item Есть ли с этим проблемы? \pause Да: multiple definition, если \mintinline{cpp}|max.h| заинклюдят хотя бы два других файла
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{multicols}{2}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// a.c
+#include <max.h>
+
+...
+\end{tcblisting}
+\columnbreak
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// b.c
+#include <max.h>
+
+...
+\end{tcblisting}
+\end{multicols}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Атрибут inline}
+\begin{itemize}
+\item Чтобы обойти эту проблему, у функций есть особый атрибут \mintinline{cpp}|inline|:
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// max.h
+inline int max(int a, int b) {
+  return (x < y) ? y : x;
+}
+\end{tcblisting}
+\usemintedstyle{tango}
+\pause
+\begin{itemize}
+\item \mintinline{cpp}|inline| -- указание \textbf{линковщику}, что multiple definition этой конкретной фукнции -- \textbf{не ошибка}, и он может взять любую
+\pause
+\item Если у вас есть несколько \textit{разных} \mintinline{cpp}|inline|-функций с одинаковым названием, это undefined behavior
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Атрибут inline}
+\begin{itemize}
+\item \(\Longrightarrow\) Если вы хотите, чтобы функция инлайнилась, нужно
+\begin{enumerate}
+\item Положить её реализацию в заголовочный файл, и
+\item Пометить её атрибутом \mintinline{cpp}|inline|, чтобы не ругался линковщик
+\end{enumerate}
+\pause
+\item \textbf{N.B.:} На решение компилятора делать инлайнинг атрибут \mintinline{cpp}|inline| \textbf{не влияет}, он сам разберётся :)
+\pause
+\item \mintinline{cpp}|inline| -- флаг именно для линковщика
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Variadic functions}
+\begin{itemize}
+\item Мы видели функции, принимающие произвольное количество аргументов: \mintinline{cpp}|printf|, \mintinline{cpp}|scanf|, и т.п. Как это работает?
+\pause
+\item В объявлении таких функций после списка аргументов стоит \textit{многочие}, соответствующее \textit{variadic} аргументам: \mintinline{cpp}|int printf(const char *format, ...);|
+\pause
+\item Концептуально: variadic аргументы функции кладутся на стек, и ожидается, что функция сама знает их количество и типы (например, \mintinline{cpp}|printf| знает это из строки формата)
+\pause
+\item На практике аргументы передаются частично через регистры и частично через стек (см. ABI и calling conventions конкретной платформы)
+\pause
+\item \textbf{N.B.:} В C++ мы встретим \textit{variadic templates} -- это похожий по общее идее, но совершенно другой по реализации механизм :)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Variadic functions}
+\begin{itemize}
+\item Для реализации variadic функций есть специальные типы и функции (на самом деле -- макросы):
+\pause
+\begin{itemize}
+\item \mintinline{cpp}|va_start()|, \mintinline{cpp}|va_end()| -- начать и закончить обработку аргументов
+\pause
+\item \mintinline{cpp}|va_arg()| -- получить текущий аргумент и перейти к следующему
+\pause
+\item \mintinline{cpp}|va_list| -- объект, хранящий состояние прохода по аргументам
+\end{itemize}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Variadic functions}
+\begin{itemize}
+\item Пример variadic функции, реализующей сумму произвольного набора чисел (первый аргумент -- количество):
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int sum(int count, ...) {
+  int result = 0;
+  va_list args;
+  va_start(args, count);
+  while (count > 0) {
+    result += va_arg(args, int);
+  }
+  va_end(args);
+  return result;
+}
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Variadic functions}
+\begin{itemize}
+\item Пример variadic функции, реализующей примитивный printf:
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+void printf(const char *format, ...) {
+  va_list args;
+  va_start(args, format);
+  while (*format != '\0') {
+    if (*format == '%') {
+      ++format;
+      if (*format == 'd') {
+        int value = va_arg(args, int);
+        // Печатаем int
+      } else if (*format == 's') {
+        const char * value = va_arg(args, const char *);
+        // Печатаем строку
+      }
+    } else {
+      char c = *format;
+      // Печатаем char
+    }
+    ++format;
+  }
+  va_end(args);
+}
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Variadic functions: проблемы}
+\begin{itemize}
+\item Трудно обнаружить ошибки несоответствия типов/количества аргументов:
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// Все эти вызовы - undefined behavior:
+printf("%d %d", 10);
+printf("%d", 11, 12);
+printf("%s", 3.1415f);
+\end{tcblisting}
+\usemintedstyle{tango}
+\pause
+\begin{itemize}
+\item Современные компиляторы и IDE знают про библиотечные variadic функции (\mintinline{cpp}|printf| и т.п.) и выдают предупреждения при несоответствии типов/количества аргументов
+\pause
+\item Механизм \textit{variadic templates} в C++ (про который мы узнаем позже) лишён этого недостатка
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Виды библиотек}
+\begin{itemize}
+\item \textit{Библиотека (library)} -- набор кода, предназначенного для переиспользования в разных программах/проектах
+\pause
+\item Они различаются по тому, как мы их подключаем к нашему коду:
+\pause
+\begin{itemize}
+\item \textit{Header-only} библиотеки
+\pause
+\item \textit{Статический (static)} библиотеки
+\pause
+\item \textit{Динамические (dynamic)} библиотеки
+\end{itemize}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Header-only библиотеки}
+\begin{itemize}
+\item \textit{Header-only} библиотеки состоят только из заголовочных файлов
+\pause
+\item Для их подключения достаточно сказать компилятору правильный путь до заголовочных файлов (\mintinline{text}|-I| в GCC, и т.п.)
+\pause
+\item Проще всего для добавления в существующую систему сборки
+\pause
+\item Если библиотека используется несколькими программами, её приходится компилировать каждый раз заново
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Header-only библиотеки: пример}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// vector.h
+
+typedef struct {
+  float x, y, z;
+} vec3;
+
+vec3 add(vec3 a, vec3 b) {
+  return (vec3){a.x + b.x, a.y + b.y, a.z + b.z};
+}
+
+vec3 muls(vec3 a, float b) {
+  return (vec3){a.x * b, a.y * b, a.z * b};
+}
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Header-only библиотеки: пример}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// main.c
+#include <vector.h>
+
+int main() {
+  vec3 v = {1.f, 2.f, 3.f};
+  vec3 u = add(v, muls(v, 0.5f));
+  return 0;
+}
+\end{tcblisting}
+\begin{tcblisting}{listing engine=minted, minted language=bash, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, colupper=white, rounded corners}
+gcc main.c -o main -I path/to/vector/includes
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Статические библиотеки}
+\begin{itemize}
+\item \textit{Статические (static)} библиотеки состоят из заголовочных и \mintinline{text}|.c| файлов
+\pause
+\item Заголовочные файлы описывают \textit{публичный интерфейс} библиотеки (функции, через которые мы пользуемся этой библиотекой)
+\pause
+\item \mintinline{text}|.c| файлы компилируются в бинарный файл библиотеки (\mintinline{text}|.a| в Linux, \mintinline{text}|.lib| в Windows)
+\pause
+\item При \textbf{линковке нашей программы} статическая библиотека \textit{склеивается} с нашей программой
+\pause
+\item При обновлении библиотеки придётся перекомпилировать программу
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Статические библиотеки: пример}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// vector.h
+
+typedef struct {
+  float x, y, z;
+} vec3;
+
+vec3 add(vec3 a, vec3 b);
+vec3 muls(vec3 a, float b);
+\end{tcblisting}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// vector.c
+#include <vector.h>
+
+vec3 add(vec3 a, vec3 b) {
+  return (vec3){a.x + b.x, a.y + b.y, a.z + b.z};
+}
+
+vec3 muls(vec3 a, float b) {
+  return (vec3){a.x * b, a.y * b, a.z * b};
+}
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Статические библиотеки: пример}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=bash, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, colupper=white, rounded corners}
+# Компиляция библиотеки
+gcc -c vector.c -o vector.o \
+  -I path/to/vector/includes
+
+# "Архивация библиотеки"
+ar rcs libvector.a vector.o
+
+# Компиляция программы
+gcc main.c -o main -lvector \
+  -I path/to/vector/includes \
+  -L path/to/vector/lib
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Динамические библиотеки}
+\begin{itemize}
+\item \textit{Динамические (static)} библиотеки компилируются независимо от нашей программы и лежат в отдельных файлах (\mintinline{text}|.so| в Linux, \mintinline{text}|.dll| в Windows, \mintinline{text}|.dylib| в macOS)
+\pause
+\item Могут устанавливаться вместе с программой, а могут поставляться системой (и устанавливаться напр. через менеджеры пакетов)
+\pause
+\item Наша программа \textbf{при запуске} загружает нужные динамические библиотеки в своё адресное пространство \(\Longrightarrow\) программе нужно как-то узнать, где они лежат (в Linux за это отвечает механизм RPATH)
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Динамические библиотеки}
+\begin{itemize}
+\item Вызов функции из динамической библиотеки чуть дороже, чем вызов обычной функции (см. Procedure Linkage Table и Global Offset Table в ELF)
+\pause
+\item При изменении кода (но не публичного интерфейса!) динамической библиотеки достаточно просто перекомпилировать саму библиотеку -- использующие её программы автоматически загрузят новую версию при запуске
+\pause
+\item Почти всегда системные библиотеки, стандартная библиотека C, и т.п. -- динамические
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Динамические библиотеки: пример}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=bash, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, colupper=white, rounded corners}
+# Компиляция библиотеки
+gcc -fPIC -c vector.c -o vector.o \
+  -I path/to/vector/includes
+
+# Линковка библиотеки
+gcc -shared vector.o -o libvector.so
+
+# Компиляция программы
+gcc main.c -o main -lvector \
+  -I path/to/vector/includes \
+  -L path/to/vector/lib \
+  -Wl,-rpath,path/to/vector/lib
+\end{tcblisting}
+\end{frame}
+
+\end{document}

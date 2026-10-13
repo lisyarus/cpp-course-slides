@@ -10,6 +10,7 @@ all: pdf/lecture03.pdf
 all: pdf/lecture04.pdf
 all: pdf/lecture05.pdf
 all: pdf/lecture06.pdf
+all: pdf/lecture07.pdf
 
 all: pdf/lecture09.pdf
 all: pdf/lecture10.pdf
