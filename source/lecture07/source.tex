@@ -209,6 +209,8 @@ inline int max(int a, int b) {
 \begin{itemize}
 \item \mintinline{cpp}|inline| -- указание \textbf{линковщику}, что multiple definition этой конкретной фукнции -- \textbf{не ошибка}, и он может взять любую
 \pause
+\item Полезно указывать \mintinline{cpp}|inline| у всех функций, \textbf{реализация которых} находится в заголовочных файлах
+\pause
 \item Если у вас есть несколько \textit{разных} \mintinline{cpp}|inline|-функций с одинаковым названием, это undefined behavior
 \end{itemize}
 \end{frame}
@@ -370,11 +372,11 @@ typedef struct {
   float x, y, z;
 } vec3;
 
-vec3 add(vec3 a, vec3 b) {
+inline vec3 add(vec3 a, vec3 b) {
   return (vec3){a.x + b.x, a.y + b.y, a.z + b.z};
 }
 
-vec3 muls(vec3 a, float b) {
+inline vec3 muls(vec3 a, float b) {
   return (vec3){a.x * b, a.y * b, a.z * b};
 }
 \end{tcblisting}
