@@ -1,0 +1,547 @@
+% (c) Nikita Lisitsa, lisyarus@gmail.com, 2026
+
+\documentclass[10pt]{beamer}
+
+\usepackage[T2A]{fontenc}
+\usepackage[russian]{babel}
+\usepackage{minted}
+
+\usepackage[most]{tcolorbox}
+\tcbuselibrary{minted}
+
+\usepackage{graphicx}
+\graphicspath{ {./images/} }
+
+\usepackage{adjustbox}
+
+\usepackage{color}
+\usepackage{soul}
+\usepackage{multicol}
+\usepackage{multirow}
+\usepackage{hyperref}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc}
+
+\usetheme{metropolis}
+
+\definecolor{red}{rgb}{1,0,0}
+\definecolor{green}{rgb}{0,0.5,0}
+\definecolor{codebg}{RGB}{29,35,49}
+\setminted{fontsize=\footnotesize}
+
+\makeatletter
+\newcommand{\slideimage}[1]{
+  \begin{figure}
+    \begin{adjustbox}{width=\textwidth, totalheight=\textheight-2\baselineskip-2\baselineskip,keepaspectratio}
+      \includegraphics{#1}
+    \end{adjustbox}
+  \end{figure}
+}
+\makeatother
+
+\title{Язык программирования C}
+\subtitle{Лекция 8: Макросы}
+\author{Лисица Никита}
+\date{2026}
+
+\setbeamertemplate{footline}[frame number]
+
+\usemintedstyle{tango}
+
+\begin{document}
+
+\frame{\titlepage}
+
+\begin{frame}[fragile]
+\frametitle{Макросы}
+\begin{itemize}
+\item Макросы -- инструмент текстовой замены одних выражений на другие
+\pause
+\item Выполняются \textbf{препроцессором}, до основного прохода компилятора -- т.е. до проверки типов, до разрешения имён, и т.п.
+\pause
+\item Заменить можно \textbf{не любое} выражение: макросы всегда выглядят, как переменные или как функции:
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+#define PI 3.1415926535
+#define SUM(a, b) a + b
+\end{tcblisting}
+\pause
+\begin{multicols}{2}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// До препроцессора:
+
+double x = sin(PI);
+int s = SUM(a, b);
+\end{tcblisting}
+\columnbreak
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+// После препроцессора:
+
+double x = sin(3.1415926535);
+int s = a + b;
+\end{tcblisting}
+\end{multicols}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Макросы}
+\begin{itemize}
+\item Если результат раскрытия макроса содержит макросы, они тоже раскрываются (но рекурсия запрещена):
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+#define PI 3.1415926535
+#define SIN_DEG(x) sin(x / 180.0 * PI)
+#define MY_ANGLE 30.0
+
+double x = SIN_DEG(MY_ANGLE);
+
+// Превратится в
+double x = 30.0 / 180.0 * 3.1415926535;
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Макросы: if}
+\begin{itemize}
+\item Макросы можно использовать для условного включения кода:
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+#define USE_SIMD
+
+// ...
+
+#ifdef USE_SIND
+  #include <immintrin.h>
+#endif
+
+vec4 add(vec4 a, vec4 b) {
+  #ifdef USE_SIMD
+    __m128 va = _mm_loadu_ps(&a.x);
+    __m128 vb = _mm_loadu_ps(&b.x);
+    __m128 vr = _mm_add_ps(va, vb);
+    vec4 result;
+    _mm_storeu_ps(&result.x, vr);
+    return result;
+  #else
+    return (vec4){a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w};
+  #endif
+}
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Макросы: if}
+\begin{itemize}
+\item \mintinline{cpp}|#if| может содержать более сложные арифметические и логические выражения:
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+#if defined(__APPLE__) && LIB_VERSION >= 3
+  ...
+#endif
+\end{tcblisting}
+\pause
+\begin{itemize}
+\item Полезно для версионирования кода, определения окружения компилятора (ОС, битность системы), и т.п.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Макросы: проблемы}
+\begin{itemize}
+\item Так как это просто текстовая подстановка (игнорирующая синтаксис C), в их использовании легко сделать ошибку
+\end{itemize}
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+#define MUL(a, b) a * b
+
+int x = 5;
+int y = MUL(x + 2, 7);
+
+printf("%i", y);
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\begin{itemize}
+\item Что выведется на экран? \pause 19, так как код превратится в \mintinline{cpp}|x + 2 * 7|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Макросы: проблемы}
+\begin{itemize}
+\item Как это исправить?
+\end{itemize}
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+#define MUL(a, b) (a) * (b)
+
+int x = 5;
+int y = MUL(x + 2, 7);
+
+printf("%i", y);
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\begin{itemize}
+\item Теперь выведется 49, так как код превратится в \mintinline{cpp}|(x + 2) * (7)|
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Макросы: проблемы}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+#define ABS(x) ((x) >= 0 ? (x) : -(x))
+
+int x = ABS(very_slow_function());
+
+printf("%i", x);
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\begin{itemize}
+\item В чём проблема? \pause \mintinline{cpp}|very_slow_function()| вызовется два раза
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Макросы: проблемы}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+#define ABS(x) ((x) >= 0 ? (x) : -(x))
+
+int x = 10;
+int y = ABS(x++);
+
+printf("%i %i", x, y);
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\begin{itemize}
+\item Что выведется на экран? \pause \mintinline{text}|12 11| (инкремент применится дважды)
+\pause
+\item \textbf{NB:} До C11 это UB, так как выражение содержит несколько побочных эффектов для одной и той же переменной
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Макросы: проблемы}
+\begin{itemize}
+\item Как исправить \mintinline{cpp}|ABS(x)|?
+\pause
+\item Никак: лучше написать функцию
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+inline int abs(int x) {
+  return x >= 0 ? x : -x;
+}
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Макросы: проблемы}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+#define SWAP(a, b) int temp = a; a = b; b = temp;
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\begin{itemize}
+\item В чём проблема? \pause Нельзя использовать в функции, где уже объявлена переменная \mintinline{cpp}|temp| (будет multiple definition):
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+int foo(int x) {
+  int temp = x * x;
+  SWAP(x, temp);
+  return x;
+}
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Макросы: проблемы}
+\begin{itemize}
+\item Как это исправить? \pause Явно создать вложенный скоуп (но лучше всё-таки функция):
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+#define SWAP(a, b) { int temp = a; a = b; b = temp; }
+\end{tcblisting}
+\pause
+\begin{itemize}
+\item Начиная с C23 можно не указывать тип:
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+#define SWAP(a, b) { typeof(a) temp = a; a = b; b = temp; }
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Многострочные макросы}
+\begin{itemize}
+\item Можно писать макросы в несколько строк, для этого в конце каждой строки кроме последней нужно поставить обратный слеш:
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+#define SWAP(a, b) { \
+  typeof(a) temp = a; \
+  a = b; \
+  b = temp; }
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Макросы: stringize}
+\begin{itemize}
+\item Макросы позволяют превратить любое выражение в строку с помощью оператора препроцессора \mintinline{cpp}|#|:
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+#define STR(x) #x
+
+printf(STR(x + 10));
+
+// Превратится в
+printf("x + 10");
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\begin{itemize}
+\item Раскрытия макросов внутри \mintinline{cpp}|x| при этом \textbf{не происходит}!
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Макросы: stringize}
+\begin{itemize}
+\item Полезно для логирования, assert'ов, unit-тестов, и т.п.:
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+#define ASSERT(x) if(!x) { \
+    printf("Assertion failed: " #x "\n"); \
+    exit(1); \
+  }
+
+int x = 10;
+ASSERT(x < 0);
+\end{tcblisting}
+\begin{itemize}
+\item Выведет:
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=text, minted options={fontsize=\scriptsize, formatcom=\color{white}}, listing only, colback=codebg, colframe=codebg, rounded corners}
+Assertion failed: x < 0
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Макросы: конкатенация}
+\begin{itemize}
+\item Можно склеивать несколько выражений в одно с помощью оператора препроцессора \mintinline{cpp}|##|:
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+#define CONCAT(x, y) x##y
+
+CONCAT(pri, ntf)("Hello, world!");
+
+// Превратится в
+printf("Hello, world!");
+\end{tcblisting}
+\pause
+\usemintedstyle{tango}
+\begin{itemize}
+\item Раскрытия макросов внутри \mintinline{cpp}|x| и \mintinline{cpp}|y| при этом тоже \textbf{не происходит}!
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Макросы: кодогенерация}
+\begin{itemize}
+\item Конкатенацию можно использовать для генерации \textit{generic} кода (для произвольных типов данных):
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+#define MAKE_MAX(type) type max_##type(type a, type b) { \
+  return a > b ? a : b; }
+
+MAKE_MAX(int)    // Сгенерирует max_int
+MAKE_MAX(float)  // Сгенерирует max_float
+MAKE_MAX(double) // Сгенерирует max_double
+
+int x = max_int(10, 11);
+double y = max_double(3.14, 2.71);
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Макросы: кодогенерация}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+#define MAKE_ARRAY(type) typedef struct { \
+  type * data; \
+  size_t size; \
+  } array_##type;
+
+MAKE_ARRAY(int)
+
+array_int a;
+a.size = 10;
+a.data = malloc(a.size * sizeof(*a.data));
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Макросы: кодогенерация}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+#define MAKE_LIST(type) typedef struct list_##type##_t { \
+  type value; \
+  list_##type##_t * next; \
+  } list_##type;
+
+MAKE_LIST(int)
+
+list_int l;
+l.value = 10;
+l.next = nullptr;
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Макросы: упрощение кода}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+#define FOREACH(size, var) \
+  for (int var = 0; var < size; ++var)
+
+FOREACH(10, i) {
+  printf("%d\n", i * i);
+}
+\end{tcblisting}
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+#define LIST_FOREACH(list, var) \
+  for (node * var = list; var != NULL; var = var->next)
+
+LIST_FOREACH(mylist, n)
+  printf("%d\n", n->value);
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Макросы: логирование}
+\begin{itemize}
+\item Есть особые нестандартные, но широко распространённые макросы для получения информации о текущем месте в коде
+\pause
+\item \mintinline{cpp}|__FILE__| раскрывается в имя файла, содержащего этот макрос
+\pause
+\item \mintinline{cpp}|__LINE__| раскрывается в номер строки в файле
+\end{itemize}
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+#define LOG(msg) printf("(%s:%d) " msg, __FILE__, __LINE__)
+
+// В main.cpp, на 25-ой строке:
+LOG("test");
+\end{tcblisting}
+\begin{itemize}
+\item Выведет
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=text, minted options={fontsize=\scriptsize, formatcom=\color{white}}, listing only, colback=codebg, colframe=codebg, rounded corners}
+(main.cpp:25) test
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Макросы: variadic}
+\begin{itemize}
+\item Макросы тоже могут быть variadic, т.е. иметь произвольное количество аргументов (обозначается тоже как многоточие \mintinline{cpp}|...|)
+\pause
+\item \mintinline{cpp}|__VA_ARGS__| -- макрос, раскрывающийся в список всех variadic аргументов (вместе с запятыми между ними)
+\end{itemize}
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+#define LOG(format, ...) printf(format, __VA_ARGS__)
+
+LOG("%s %d", "Hello ", 10);
+\end{tcblisting}
+\begin{itemize}
+\item Выведет
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=text, minted options={fontsize=\scriptsize, formatcom=\color{white}}, listing only, colback=codebg, colframe=codebg, rounded corners}
+Hello 10
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Макросы: variadic}
+\begin{itemize}
+\item Если в variadic макрос не передать ни одного variadic аргумента, \mintinline{cpp}|__VA_ARGS__| раскрывается в пустоту
+\pause
+\item Часто это становится проблемой, если передавать \mintinline{cpp}|__VA_ARGS__| аргументами в какую-то функцию -- в конце остаётся лишняя запятая:
+\end{itemize}
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+#define LOG(format, ...) printf(format, __VA_ARGS__)
+
+LOG("Hello");
+
+// Превратится в
+printf("Hello", );
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Макросы: variadic}
+\begin{itemize}
+\item Решение: \mintinline{cpp}|__VA_OPT__| (C23, C++20)
+\pause
+\item \mintinline{cpp}|__VA_OPT__(X)| раскрывается в \mintinline{cpp}|X|, если список variadic аргументов непустой, иначе раскрывается в пустоту
+\end{itemize}
+\pause
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+#define LOG(format, ...) \
+  printf(format __VA_OPT_(,) __VA_ARGS__)
+\end{tcblisting}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Макросы: логирование с форматированием}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
+#define LOG(format, ...) \
+  printf("(%s:%d) " format, __FILE__, __LINE__ \
+    __VA_OPT__(,) __VA_ARGS__)
+
+int a = 10, b = 20;
+// В main.cpp, в 25-ой строке
+LOG("%d + %d = %d", a, b);
+\end{tcblisting}
+\begin{itemize}
+\item Выведет
+\end{itemize}
+\usemintedstyle{lightbulb}
+\begin{tcblisting}{listing engine=minted, minted language=text, minted options={fontsize=\scriptsize, formatcom=\color{white}}, listing only, colback=codebg, colframe=codebg, rounded corners}
+(main.cpp:25) 10 + 20 = 30
+\end{tcblisting}
+\end{frame}
+
+\end{document}
