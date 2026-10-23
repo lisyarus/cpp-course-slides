@@ -327,7 +327,7 @@ printf("x + 10");
 \end{itemize}
 \usemintedstyle{lightbulb}
 \begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
-#define ASSERT(x) if(!x) { \
+#define ASSERT(x) if(!(x)) { \
     printf("Assertion failed: " #x "\n"); \
     exit(1); \
   }
@@ -407,7 +407,7 @@ a.data = malloc(a.size * sizeof(*a.data));
 \begin{tcblisting}{listing engine=minted, minted language=cpp, minted options={fontsize=\scriptsize}, listing only, colback=codebg, colframe=codebg, rounded corners}
 #define MAKE_LIST(type) typedef struct list_##type##_t { \
   type value; \
-  list_##type##_t * next; \
+  struct list_##type##_t * next; \
   } list_##type;
 
 MAKE_LIST(int)
